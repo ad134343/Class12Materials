@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Class 12 — Study Index</title>
+    <meta name="theme-color" content="#121218">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+<body>
+
+    <!-- ═══ NAME GATE / COVER ═══ -->
+    <div id="gate" class="gate">
+        <div class="gate__bg"></div>
+        <div class="gate__glow"></div>
+        <div class="gate__noise"></div>
+
+        <span class="gate__spine">ISC · Class XII · Study Index</span>
+
+        <div class="gate__content">
+            <p class="gate__eyebrow">Welcome to</p>
+            <h1 class="gate__title">Class 12</h1>
+            <div class="gate__divider"></div>
+            <p class="gate__subtitle">Please enter your name</p>
+            <form id="nameForm" class="gate__form">
+                <div class="gate__field">
+                    <input type="text" id="nameInput" class="gate__input" placeholder="Your name" required autocomplete="off" minlength="2">
+                    <span class="gate__field-line"></span>
+                </div>
+                <button type="submit" class="gate__btn">
+                    <span class="gate__btn-label">Continue</span>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ═══ MAIN APP ═══ -->
+    <div id="app" class="app hidden">
+
+        <nav class="nav">
+            <div class="nav__inner">
+                <button class="nav__logo" id="homeBtn">Class 12</button>
+                <div class="nav__right">
+                    <span class="nav__greeting" id="greeting"></span>
+                    <button class="nav__user" id="logoutBtn" aria-label="Sign out" title="Sign out">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <div class="shell">
+            <nav id="breadcrumb" class="crumbs"></nav>
+            <main id="content" class="content"></main>
+        </div>
+
+        <footer class="foot">
+            <p>Made with care for exam season</p>
+        </footer>
+    </div>
+
+    <!-- ═══ PDF VIEWER ═══ -->
+    <div id="viewer" class="viewer hidden">
+        <div class="viewer__overlay" id="viewerOverlay"></div>
+        <div class="viewer__shell">
+            <div class="viewer__bar">
+                <span class="viewer__name" id="viewerName">Document.pdf</span>
+                <div class="viewer__actions">
+                    <a id="viewerDl" href="#" download class="viewer__btn viewer__btn--dl">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <span class="viewer__btn-text">Download</span>
+                    </a>
+                    <button id="viewerClose" class="viewer__btn viewer__btn--close" aria-label="Close">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
+            </div>
+            <iframe id="viewerFrame" class="viewer__frame" title="PDF Viewer"></iframe>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
