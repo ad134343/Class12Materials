@@ -84,6 +84,7 @@ button, input { font: inherit; color: inherit; }
   z-index: 1000;
   display: flex;
   align-items: center;
+  justify-content: center;
   transition: opacity 0.7s var(--ease), visibility 0.7s;
 }
 
@@ -145,7 +146,6 @@ button, input { font: inherit; color: inherit; }
   max-width: 460px;
   width: 100%;
   padding: 0 8vw;
-  margin-left: 4vw;
 }
 
 .gate__eyebrow {
@@ -164,7 +164,7 @@ button, input { font: inherit; color: inherit; }
 .gate__title {
   font-family: var(--serif);
   font-optical-sizing: auto;
-  font-size: clamp(56px, 11vw, 104px);
+  font-size: clamp(48px, 9vw, 88px);
   font-weight: 500;
   font-style: italic;
   letter-spacing: -1.5px;
@@ -849,7 +849,7 @@ html.fonts-ready .gate__spine {
   .subjects { grid-template-columns: repeat(2, 1fr); }
   .files { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
   .gate__spine { display: none; }
-  .gate__content { margin-left: 0; padding: 0 9vw; }
+  .gate__content { padding: 0 9vw; }
 }
 
 /* Mobile */
@@ -888,7 +888,6 @@ html.fonts-ready .gate__spine {
   .files { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .file-card__overlay-btn { width: 92px; padding: 7px 10px; font-size: 11px; }
   .crumbs { padding: 20px 0 4px; }
-  .gate__title { font-size: 15vw; }
   .gate__form { flex-direction: column; align-items: stretch; }
   .gate__btn { justify-content: center; padding: 12px 2px; }
 
