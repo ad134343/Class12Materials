@@ -27,7 +27,7 @@ const SITE_CONFIG = {
   //  script to paste into script.google.com, deploy as a Web App,
   //  then paste the /exec URL below.
   logging: {
-    endpoint: "https://script.google.com/macros/s/AKfycbwL4F6d9Vue3fxDbz3IROS2g6ry2_0S452xhkTUB_V9f_5TDRIdxCqA1v-PBXvj98Q6/exec",
+    endpoint: "https://script.google.com/macros/s/AKfycbzxmepk_5KAaAx3JbhE0Zm8-j0eMvh95v0pp9sn4jc54ch1fPmlYmpV4Jb6PvD6nJit/exec",
   },
 
   // ── Access List (Who Can Log In) ─────────────────────────────
