@@ -32,9 +32,75 @@ const SITE_CONFIG = {
   accessList: {
     enabled: true,
     names: [
-      // TODO: replace with your actual student list
-      "Aarav", "Ishaan", "Priya", "Zoya",
-      "Aarav Shah", "Ishaan Mehta", "Priya Patel", "Zoya Sheikh",
+      // Roll 1 — Aanomitro Ghosh
+      "Aanomitro", "Aanomitro Ghosh",
+      // Roll 2 — Aashvi Tanojkumar Patel
+      "Aashvi", "Aashvi Patel", "Aashvi Tanojkumar Patel",
+      // Roll 3 — Adnan Abbas Merchant
+      "Adnan", "Adnan Merchant", "Adnan Abbas Merchant",
+      // Roll 4 — Akshat Himanshu Prajapati
+      "Akshat", "Akshat Prajapati", "Akshat Himanshu Prajapati",
+      // Roll 5 — Anokhi Sahebsingh Rawat
+      "Anokhi", "Anokhi Rawat", "Anokhi Sahebsingh Rawat",
+      // Roll 6 — Atharva Manoj Pandya
+      "Atharva", "Atharva Pandya", "Atharva Manoj Pandya",
+      // Roll 7 — Bhagyalaxmi Anjankumar Das
+      "Bhagyalaxmi", "Bhagyalaxmi Das", "Bhagyalaxmi Anjankumar Das",
+      // Roll 8 — Divyansh Mishra
+      "Divyansh", "Divyansh Mishra",
+      // Roll 9 — Diya Tushar Shah
+      "Diya", "Diya Shah", "Diya Tushar Shah",
+      // Roll 10 — Harmy Dilawarsinh Rajput
+      "Harmy", "Harmy Rajput", "Harmy Dilawarsinh Rajput",
+      // Roll 11 — Heet Vimal Shah
+      "Heet", "Heet Shah", "Heet Vimal Shah",
+      // Roll 12 — Hetvi Pithabhai Solanki
+      "Hetvi", "Hetvi Solanki", "Hetvi Pithabhai Solanki",
+      // Roll 13 — Hinal Lalit Patel
+      "Hinal", "Hinal Patel", "Hinal Lalit Patel",
+      // Roll 14 — Hiya Vimal Shah
+      "Hiya", "Hiya Shah", "Hiya Vimal Shah",
+      // Roll 15 — Ishan Pankaj Talegaonkar
+      "Ishan", "Ishan Talegaonkar", "Ishan Pankaj Talegaonkar",
+      // Roll 16 — Jaivik Himanshu Patel
+      "Jaivik", "Jaivik Patel", "Jaivik Himanshu Patel",
+      // Roll 17 — Krishna Satish Gajara
+      "Krishna", "Krishna Gajara", "Krishna Satish Gajara",
+      // Roll 18 — Kunal Vidyadhar Nar
+      "Kunal", "Kunal Nar", "Kunal Vidyadhar Nar",
+      // Roll 19 — Laxmi Arun Pawar
+      "Laxmi", "Laxmi Pawar", "Laxmi Arun Pawar",
+      // Roll 20 — Neel Jigneshbhai Kamli
+      "Neel", "Neel Kamli", "Neel Jigneshbhai Kamli",
+      // Roll 21 — Payoja Manoj Kori
+      "Payoja", "Payoja Kori", "Payoja Manoj Kori",
+      // Roll 22 — Rakshit Chandresh Shah
+      "Rakshit", "Rakshit Shah", "Rakshit Chandresh Shah",
+      // Roll 23 — Rutva Bharat Saxena
+      "Rutva", "Rutva Saxena", "Rutva Bharat Saxena",
+      // Roll 24 — Lad Rutva Brijeshkumar (name order looks reversed on the
+      // roster vs. everyone else — covering it both ways just in case)
+      "Lad", "Rutva", "Lad Brijeshkumar", "Rutva Brijeshkumar", "Lad Rutva Brijeshkumar",
+      // Roll 25 — Samarth Naik
+      "Samarth", "Samarth Naik",
+      // Roll 26 — Sankalp Amod Bhave
+      "Sankalp", "Sankalp Bhave", "Sankalp Amod Bhave",
+      // Roll 27 — Sheza Shaukat Chawdawala
+      "Sheza", "Sheza Chawdawala", "Sheza Shaukat Chawdawala",
+      // Roll 28 — Shlok Archit Shah
+      "Shlok", "Shlok Shah", "Shlok Archit Shah",
+      // Roll 29 — Soumya Sandeep Patil
+      "Soumya", "Soumya Patil", "Soumya Sandeep Patil",
+      // Roll 30 — Swarnangsu De
+      "Swarnangsu", "Swarnangsu De",
+      // Roll 31 — Vedant Amit Bhalerao
+      "Vedant", "Vedant Bhalerao", "Vedant Amit Bhalerao",
+      // Roll 32 — Viha Mehul Mistry
+      "Viha", "Viha Mistry", "Viha Mehul Mistry",
+      // Roll 33 — Yug Sachin Prajapati
+      "Yug", "Yug Prajapati", "Yug Sachin Prajapati",
+      // Roll 34 — Yugrajsinh Mahirajsinh Parmar
+      "Yugrajsinh", "Yugrajsinh Parmar", "Yugrajsinh Mahirajsinh Parmar",
     ],
   },
 
