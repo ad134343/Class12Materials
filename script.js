@@ -40,6 +40,8 @@
   const viewerOverlay = $("#viewerOverlay");
   const viewerFrame = $("#viewerFrame");
   const gateBtn     = $(".gate__btn");
+  const gateError   = $("#gateError");
+  const gateField   = $(".gate__field");
 
   // ── State ──────────────────────────────────────────────
   let curView    = "home";
@@ -49,6 +51,19 @@
   // ── Helpers ────────────────────────────────────────────
   function encodePath(p) {
     return p.split("/").map((s) => encodeURIComponent(s)).join("/");
+  }
+
+  // Case/whitespace-insensitive match against the access list —
+  // "PRIYA", " priya ", "Priya" all match "Priya".
+  function normalizeName(s) {
+    return s.trim().replace(/\s+/g, " ").toLowerCase();
+  }
+
+  function isAuthorized(name) {
+    const list = SITE_CONFIG.accessList;
+    if (!list || !list.enabled) return true;
+    const norm = normalizeName(name);
+    return list.names.some((n) => normalizeName(n) === norm);
   }
 
   // ── Font-load gate ───────────────────────────────────────
@@ -81,15 +96,17 @@
   // ── Init ───────────────────────────────────────────────
   function init() {
     const saved = localStorage.getItem("c12_name");
-    if (saved) {
+    if (saved && isAuthorized(saved)) {
       gate.classList.add("hidden");
       showApp(saved);
     } else {
+      if (saved) localStorage.removeItem("c12_name"); // no longer on the list
       gate.classList.remove("hidden");
       app.classList.add("hidden");
     }
 
     nameForm.addEventListener("submit", onNameSubmit);
+    nameInput.addEventListener("input", hideGateError);
     homeBtn.addEventListener("click", () => nav("home"));
     logoutBtn.addEventListener("click", () => {
       localStorage.removeItem("c12_name");
@@ -121,10 +138,31 @@
     e.preventDefault();
     const name = nameInput.value.trim();
     if (!name) return;
+
+    if (!isAuthorized(name)) {
+      logAttempt(name, false);
+      showGateError("You're not authorized to view this page. Please enter your actual name.");
+      return;
+    }
+
+    hideGateError();
     localStorage.setItem("c12_name", name);
-    logVisitor(name);
+    logAttempt(name, true);
     gate.classList.add("fade-out");
     setTimeout(() => { gate.classList.add("hidden"); showApp(name); }, 650);
+  }
+
+  function showGateError(msg) {
+    gateError.textContent = msg;
+    gateError.classList.remove("hidden");
+    gateField.classList.remove("shake");
+    // Force reflow so the shake animation can re-trigger on repeat attempts
+    void gateField.offsetWidth;
+    gateField.classList.add("shake");
+  }
+
+  function hideGateError() {
+    gateError.classList.add("hidden");
   }
 
   function showApp(name) {
@@ -133,13 +171,23 @@
     nav("home");
   }
 
-  function logVisitor(name) {
+  function logAttempt(name, wasAuthorized) {
     const endpoint = SITE_CONFIG.formspree && SITE_CONFIG.formspree.endpoint;
     if (!endpoint) return;
     const fd = new FormData();
     fd.append("name", name);
-    fd.append("_subject", `${name} just signed in — Class 12 Study Portal`);
-    fd.append("message", `${name} logged in to the Class 12 study portal just now.`);
+    fd.append(
+      "_subject",
+      wasAuthorized
+        ? `${name} just signed in — Class 12 Study Portal`
+        : `Unauthorized attempt: "${name}" — Class 12 Study Portal`
+    );
+    fd.append(
+      "message",
+      wasAuthorized
+        ? `${name} logged in to the Class 12 study portal just now.`
+        : `Someone tried to log in as "${name}" and was NOT on the access list.`
+    );
     // Accept: application/json tells Formspree to respond with JSON
     // instead of redirecting, which is what makes this work as a
     // silent background call instead of navigating the page away.

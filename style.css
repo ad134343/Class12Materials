@@ -303,6 +303,24 @@ html.fonts-ready .gate__spine {
 .gate__btn svg { transition: transform 0.3s var(--ease); }
 .gate__btn:hover svg { transform: translateX(4px); color: var(--brass); }
 
+.gate__error {
+  margin-top: 16px;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--chemistry);
+  animation: fadeUp 0.3s var(--ease-soft) both;
+}
+
+.gate__field.shake { animation: shakeField 0.4s var(--ease-soft); }
+
+@keyframes shakeField {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-6px); }
+  40%      { transform: translateX(5px); }
+  60%      { transform: translateX(-3px); }
+  80%      { transform: translateX(2px); }
+}
+
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }

@@ -21,6 +21,23 @@ const SITE_CONFIG = {
     endpoint: "https://formspree.io/f/moeqnqrq",
   },
 
+  // ── Access List (Who Can Log In) ─────────────────────────────
+  //  Only names on this list can get past the gate. Matching is
+  //  case-insensitive and ignores extra spaces — "PRIYA", "priya",
+  //  "  Priya " all match "Priya". Put whichever version of a
+  //  name a student is likely to type: their first name, their
+  //  full name, or both as separate entries (safest — covers
+  //  either way they might type it). Set enabled: false to open
+  //  the gate back up to anyone.
+  accessList: {
+    enabled: true,
+    names: [
+      // TODO: replace with your actual student list
+      "Aarav", "Ishaan", "Priya", "Zoya",
+      "Aarav Shah", "Ishaan Mehta", "Priya Patel", "Zoya Sheikh",
+    ],
+  },
+
   // ── Subjects & Files ──────────────────────────────────────
   subjects: [
 
@@ -172,7 +189,6 @@ const SITE_CONFIG = {
             { name: "Ch 2 — Electrochemistry", path: "chemistry/Chapter Notes/Chapter 2 - Electrochemistry.pdf" },
             { name: "Ch 3 — Chemical Kinetics", path: "chemistry/Chapter Notes/Chapter 3 - Chemical Kinetics.pdf" },
             { name: "Ch 4 — D & F Block Elements", path: "chemistry/Chapter Notes/Chapter 4 - D & F Block Elements.pdf" },
-            { name: "Ch 5 — Coordination Compounds", path: "chemistry/Chapter Notes/Chapter 5 - Coordination Compounds.pdf" },
             { name: "Ch 6 — Haloalkanes & Haloarenes", path: "chemistry/Chapter Notes/Chapter 6 - Haloalkanes & Haloarenes.pdf" },
             { name: "Ch 7 — Alcohols, Phenols & Ethers", path: "chemistry/Chapter Notes/Chapter 7 - Alcohols Phenols & Ethers.pdf" },
             { name: "Ch 10 — Biomolecules", path: "chemistry/Chapter Notes/Chapter 10 - Biomolecules.pdf" },
