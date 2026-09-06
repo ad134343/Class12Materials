@@ -101,6 +101,10 @@ const SITE_CONFIG = {
       "Yug", "Yug Prajapati", "Yug Sachin Prajapati",
       // Roll 34 — Yugrajsinh Mahirajsinh Parmar
       "Yugrajsinh", "Yugrajsinh Parmar", "Yugrajsinh Mahirajsinh Parmar",
+      // Roll 35 — Kaushal Bhardwaj
+      "Kaushal", "Kaushal Bhardwaj",
+      // Roll 36 — Khushbu Bhavsar
+      "Khushbu", "Khushbu Bhavsar",
     ],
   },
 
