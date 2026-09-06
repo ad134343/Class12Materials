@@ -107,6 +107,7 @@ const SITE_CONFIG = {
     enabled: true,
     hashes: [
       "bf56b85f4777e1fb2e50955cb60b12937292c456d9e99e4f0f5c186ac84d4a1e", // Divyansh Mishra
+      "12cc1d85df8f176c723d06a0ec39439f357bf6b27d5ee5d8c2e0239c0b96f50b", // Divyansh
     ],
     deviceIds: [
       // "paste device fingerprint here once you have it from the log sheet"
