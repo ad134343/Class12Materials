@@ -96,6 +96,109 @@
     return hash;
   };
 
+  // ── Device fingerprint ──────────────────────────────────
+  // A hash of stable browser/hardware signals — NOT tied to any name
+  // typed into the gate. This is what lets us block a specific phone
+  // even if it enters someone else's name. It isn't perfect: clearing
+  // site data doesn't change it (nothing is stored — it's recomputed
+  // from hardware/browser traits each time), but a different browser
+  // on the same phone, or reinstalling/resetting the browser's canvas
+  // rendering, can shift it. Good enough as a sticky secondary layer;
+  // not a substitute for the name-based block.
+  function canvasFingerprint() {
+    try {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      ctx.textBaseline = "top";
+      ctx.font = "14px Arial";
+      ctx.fillStyle = "#f60";
+      ctx.fillRect(125, 1, 62, 20);
+      ctx.fillStyle = "#069";
+      ctx.fillText("c12-fingerprint", 2, 15);
+      ctx.fillStyle = "rgba(102, 204, 0, 0.7)";
+      ctx.fillText("c12-fingerprint", 4, 17);
+      return canvas.toDataURL();
+    } catch {
+      return "";
+    }
+  }
+
+  let cachedDeviceId = null;
+  async function getDeviceId() {
+    if (cachedDeviceId) return cachedDeviceId;
+    const parts = [
+      navigator.userAgent || "",
+      navigator.platform || "",
+      navigator.language || "",
+      String(navigator.hardwareConcurrency || ""),
+      `${screen.width}x${screen.height}x${screen.colorDepth}`,
+      (Intl.DateTimeFormat().resolvedOptions().timeZone || ""),
+      canvasFingerprint()
+    ];
+    cachedDeviceId = await sha256Hex(parts.join("||"));
+    return cachedDeviceId;
+  }
+
+  // Console helper: open dev tools on the suspect's phone (or ask them
+  // to, or just check the log sheet after their next attempt — see
+  // logEvent below, which now records this on every login try) and
+  // run  await __deviceId()  to get the value to paste into
+  // config.js's suspended.deviceIds.
+  window.__deviceId = async () => {
+    const id = await getDeviceId();
+    console.log(id);
+    return id;
+  };
+
+  // ── Client IP (best-effort, bonus layer only) ───────────
+  // Fetched from a public "what's my IP" service since a static site
+  // has no server of its own to read it from. Fails silently (empty
+  // string) if the request is blocked or slow — never blocks login on
+  // a network hiccup.
+  let cachedIp = null;
+  async function getClientIp() {
+    if (cachedIp !== null) return cachedIp;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2500);
+      const res = await fetch("https://api.ipify.org?format=json", { signal: controller.signal });
+      clearTimeout(timeout);
+      const data = await res.json();
+      cachedIp = data.ip || "";
+    } catch {
+      cachedIp = "";
+    }
+    return cachedIp;
+  }
+
+  // ── Suspension check ─────────────────────────────────────
+  // Checked BEFORE the normal accessList lookup. Any one of three
+  // signals is enough to block: the typed name, this browser's device
+  // fingerprint, or (best-effort) the current IP. This is what makes
+  // "enters a classmate's name instead" not work — the device
+  // fingerprint check doesn't care what name was typed.
+  async function isSuspended(name) {
+    const s = SITE_CONFIG.suspended;
+    if (!s || !s.enabled) return false;
+
+    if (name && Array.isArray(s.hashes) && s.hashes.length) {
+      const hash = await hashName(name);
+      if (s.hashes.includes(hash)) return true;
+    }
+
+    if (Array.isArray(s.deviceIds) && s.deviceIds.length) {
+      const deviceId = await getDeviceId();
+      if (s.deviceIds.includes(deviceId)) return true;
+    }
+
+    if (Array.isArray(s.ips) && s.ips.length) {
+      const ip = await getClientIp();
+      if (ip && s.ips.includes(ip)) return true;
+    }
+
+    return false;
+  }
+
   // ── Font-load gate ───────────────────────────────────────
   // The gate's entrance animation is written in CSS as "paused"
   // until this fires. Fraunces/Archivo load async — if the reveal
@@ -160,7 +263,12 @@
   // ── Init ───────────────────────────────────────────────
   async function init() {
     const saved = readSession();
-    if (saved && (await isAuthorized(saved))) {
+    if (saved && (await isSuspended(saved))) {
+      clearSession();
+      gate.classList.remove("hidden");
+      app.classList.add("hidden");
+      showGateError((SITE_CONFIG.suspended && SITE_CONFIG.suspended.message) || "You are not able to access this page.");
+    } else if (saved && (await isAuthorized(saved))) {
       gate.classList.add("hidden");
       showApp(saved);
     } else {
@@ -206,15 +314,31 @@
     const name = nameInput.value.trim();
     if (!name) return;
 
+    // Kept as plain "authorized"/"unauthorized" (not a new "suspended"
+    // string) so your currently-deployed Apps Script — which only
+    // checks detail === "unauthorized" — still fires its ⚠ alert email
+    // for a blocked attempt without needing a redeploy. The device/IP
+    // trace rides along in the `page` field instead, which that script
+    // already logs as-is with no parsing: open the sheet, find the row,
+    // and the Page column has everything after " || ".
+    const [deviceId, ip] = await Promise.all([getDeviceId(), getClientIp()]);
+    const trace = `${location.href} || device:${deviceId} || ip:${ip || "unknown"}`;
+
+    if (await isSuspended(name)) {
+      logEvent("login", name, "unauthorized", trace);
+      showGateError((SITE_CONFIG.suspended && SITE_CONFIG.suspended.message) || "You are not able to access this page.");
+      return;
+    }
+
     if (!(await isAuthorized(name))) {
-      logEvent("login", name, "unauthorized");
+      logEvent("login", name, "unauthorized", trace);
       showGateError("You're not authorized to view this page. Please enter your actual name.");
       return;
     }
 
     hideGateError();
     saveSession(name);
-    logEvent("login", name, "authorized");
+    logEvent("login", name, "authorized", trace);
     gate.classList.add("fade-out");
     setTimeout(() => { gate.classList.add("hidden"); showApp(name); }, 650);
   }
@@ -253,7 +377,7 @@
   // type keeps this a "simple request" (no preflight), and the sheet
   // still gets the row even though we can't read the response — same
   // fire-and-forget shape as the old Formspree call.
-  function logEvent(type, name, detail) {
+  function logEvent(type, name, detail, pageOverride) {
     const endpoint = SITE_CONFIG.logging && SITE_CONFIG.logging.endpoint;
     if (!endpoint || endpoint.indexOf("PASTE_YOUR") === 0) return;
     fetch(endpoint, {
@@ -265,7 +389,7 @@
         name: name || "",
         detail: detail || "",
         time: new Date().toISOString(),
-        page: location.href
+        page: pageOverride || location.href
       })
     }).catch(() => {});
   }

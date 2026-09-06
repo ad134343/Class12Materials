@@ -81,6 +81,42 @@ const SITE_CONFIG = {
     ],
   },
 
+  // ── Suspended Users ────────────────────────────────────────
+  //  Three independent ways someone can get blocked; ANY match is
+  //  enough — script.js checks all three before checking accessList.
+  //
+  //  - hashes:      same salted-hash scheme as accessList, but for
+  //                 names to block outright, with `message` shown
+  //                 instead of the normal "not authorized" text.
+  //                 His name STAYS in accessList.hashes too — this
+  //                 list is checked first, so it wins.
+  //  - deviceIds:   a fingerprint of the browser/device (not tied to
+  //                 any name), computed by script.js. This is what
+  //                 catches him if he types a classmate's name on the
+  //                 same phone. It starts empty — see script.js's
+  //                 getDeviceId() comment for how you get the actual
+  //                 value to paste in here once he's logged the
+  //                 attempt.
+  //  - ips:         his network's public IP address, as a bonus
+  //                 layer. Starts empty. IMPORTANT: on mobile data
+  //                 this changes every few hours to every few days,
+  //                 so this entry will go stale — it's not something
+  //                 you set once and forget, unlike deviceIds which
+  //                 is stable to that specific browser.
+  suspended: {
+    enabled: true,
+    hashes: [
+      "bf56b85f4777e1fb2e50955cb60b12937292c456d9e99e4f0f5c186ac84d4a1e", // Divyansh Mishra
+    ],
+    deviceIds: [
+      // "paste device fingerprint here once you have it from the log sheet"
+    ],
+    ips: [
+      // "paste his current IP here if you want the bonus layer — expect to update it"
+    ],
+    message: "You have been suspended from using this website due to inappropriate behaviour.",
+  },
+
   // ── Subjects & Files ──────────────────────────────────────
   subjects: [
 
