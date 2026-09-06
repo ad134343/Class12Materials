@@ -9,6 +9,16 @@ const SITE_CONFIG = {
   title: "Class 12 Study Portal",
   subtitle: "Complete study material — Notes, Formulas & Solutions",
 
+  // ── Session ──────────────────────────────────────────────────
+  //  After logging in, a name is remembered in the browser (so a
+  //  reload doesn't ask again) but only for this many minutes — after
+  //  that it auto-expires and the name gate reappears, even if the
+  //  page was just sitting open or cached. Set to 0 to require login
+  //  on every single visit with no grace period.
+  session: {
+    expiryMinutes: 15,
+  },
+
   // ── Activity Logging (Login / View / Download) ──────────────
   //  Every login, PDF view, and PDF download is POSTed here in the
   //  background and appended as a row to a Google Sheet — no email

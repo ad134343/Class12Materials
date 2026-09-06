@@ -123,14 +123,48 @@
     setTimeout(markFontsReady, 300);
   }
 
+  // ── Session persistence ──────────────────────────────────
+  //  Stored as JSON {name, ts} rather than a bare name, so we can
+  //  tell how long ago the login happened and expire it after
+  //  SITE_CONFIG.session.expiryHours — this is what forces a fresh
+  //  login on a browser that's been left open (or cached) for a while.
+  function saveSession(name) {
+    localStorage.setItem("c12_name", JSON.stringify({ name, ts: Date.now() }));
+  }
+
+  function readSession() {
+    const raw = localStorage.getItem("c12_name");
+    if (!raw) return null;
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      // Old format from before expiry was added: a bare name string.
+      // Treat it as expired so everyone gets re-prompted once, cleanly.
+      return null;
+    }
+    if (!parsed || !parsed.name || !parsed.ts) return null;
+
+    const minutes = (SITE_CONFIG.session && SITE_CONFIG.session.expiryMinutes);
+    const maxAgeMs = (typeof minutes === "number" ? minutes : 15) * 60 * 1000;
+    if (Date.now() - parsed.ts > maxAgeMs) return null; // expired
+
+    return parsed.name;
+  }
+
+  function clearSession() {
+    localStorage.removeItem("c12_name");
+  }
+
   // ── Init ───────────────────────────────────────────────
   async function init() {
-    const saved = localStorage.getItem("c12_name");
+    const saved = readSession();
     if (saved && (await isAuthorized(saved))) {
       gate.classList.add("hidden");
       showApp(saved);
     } else {
-      if (saved) localStorage.removeItem("c12_name"); // no longer on the list
+      if (saved) clearSession(); // no longer on the list, or expired
       gate.classList.remove("hidden");
       app.classList.add("hidden");
     }
@@ -139,7 +173,7 @@
     nameInput.addEventListener("input", hideGateError);
     homeBtn.addEventListener("click", () => nav("home"));
     logoutBtn.addEventListener("click", () => {
-      localStorage.removeItem("c12_name");
+      clearSession();
       location.reload();
     });
     viewerDl.addEventListener("click", () => {
@@ -179,7 +213,7 @@
     }
 
     hideGateError();
-    localStorage.setItem("c12_name", name);
+    saveSession(name);
     logEvent("login", name, "authorized");
     gate.classList.add("fade-out");
     setTimeout(() => { gate.classList.add("hidden"); showApp(name); }, 650);
