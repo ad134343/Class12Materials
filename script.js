@@ -171,12 +171,39 @@
     return cachedIp;
   }
 
+  // ── Remote device blocklist ──────────────────────────────
+  // Pulled from the Apps Script backend, which auto-adds a device
+  // fingerprint here the moment that device gets blocked once by name
+  // (see logEvent below and the Apps Script's doPost). This is what
+  // makes the block automatic — you don't have to open the sheet and
+  // paste anything into config.js yourself. Fails open (empty list)
+  // on any network error, same philosophy as getClientIp: a hiccup
+  // fetching this should never lock out a legitimate student.
+  let cachedRemoteBlocked = null;
+  async function fetchBlockedDeviceIds() {
+    if (cachedRemoteBlocked) return cachedRemoteBlocked;
+    const endpoint = SITE_CONFIG.logging && SITE_CONFIG.logging.endpoint;
+    if (!endpoint || endpoint.indexOf("PASTE_YOUR") === 0) return [];
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2500);
+      const res = await fetch(`${endpoint}?action=blockedDevices`, { signal: controller.signal });
+      clearTimeout(timeout);
+      const data = await res.json();
+      cachedRemoteBlocked = (data && data.blockedDevices) || [];
+    } catch {
+      cachedRemoteBlocked = [];
+    }
+    return cachedRemoteBlocked;
+  }
+
   // ── Suspension check ─────────────────────────────────────
-  // Checked BEFORE the normal accessList lookup. Any one of three
+  // Checked BEFORE the normal accessList lookup. Any one of four
   // signals is enough to block: the typed name, this browser's device
-  // fingerprint, or (best-effort) the current IP. This is what makes
-  // "enters a classmate's name instead" not work — the device
-  // fingerprint check doesn't care what name was typed.
+  // fingerprint (checked against BOTH the static config.js list and
+  // the auto-maintained remote list), or (best-effort) the current IP.
+  // This is what makes "enters a classmate's name instead" not work —
+  // the device fingerprint check doesn't care what name was typed.
   async function isSuspended(name) {
     const s = SITE_CONFIG.suspended;
     if (!s || !s.enabled) return false;
@@ -186,10 +213,12 @@
       if (s.hashes.includes(hash)) return true;
     }
 
-    if (Array.isArray(s.deviceIds) && s.deviceIds.length) {
-      const deviceId = await getDeviceId();
-      if (s.deviceIds.includes(deviceId)) return true;
-    }
+    const deviceId = await getDeviceId();
+
+    if (Array.isArray(s.deviceIds) && s.deviceIds.includes(deviceId)) return true;
+
+    const remoteBlocked = await fetchBlockedDeviceIds();
+    if (remoteBlocked.includes(deviceId)) return true;
 
     if (Array.isArray(s.ips) && s.ips.length) {
       const ip = await getClientIp();
@@ -314,18 +343,17 @@
     const name = nameInput.value.trim();
     if (!name) return;
 
-    // Kept as plain "authorized"/"unauthorized" (not a new "suspended"
-    // string) so your currently-deployed Apps Script — which only
-    // checks detail === "unauthorized" — still fires its ⚠ alert email
-    // for a blocked attempt without needing a redeploy. The device/IP
-    // trace rides along in the `page` field instead, which that script
-    // already logs as-is with no parsing: open the sheet, find the row,
-    // and the Page column has everything after " || ".
+    // Tagged distinctly as "suspended" (not folded into "unauthorized")
+    // so the Apps Script backend can tell this specific case apart and
+    // auto-add the device fingerprint (parsed out of the page field
+    // below) to its own blocklist — see the backend's doPost. This
+    // needs the fresh Apps Script deployment to understand the tag;
+    // it's safe now since that's being redeployed anyway.
     const [deviceId, ip] = await Promise.all([getDeviceId(), getClientIp()]);
     const trace = `${location.href} || device:${deviceId} || ip:${ip || "unknown"}`;
 
     if (await isSuspended(name)) {
-      logEvent("login", name, "unauthorized", trace);
+      logEvent("login", name, "suspended", trace);
       showGateError((SITE_CONFIG.suspended && SITE_CONFIG.suspended.message) || "You are not able to access this page.");
       return;
     }
