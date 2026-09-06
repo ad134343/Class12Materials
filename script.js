@@ -59,12 +59,41 @@
     return s.trim().replace(/\s+/g, " ").toLowerCase();
   }
 
-  function isAuthorized(name) {
+  // The access list stores salted SHA-256 hashes, not plaintext names,
+  // so that opening dev tools on config.js doesn't hand someone the
+  // exact list of valid names to try. This is a deterrent against
+  // casual snooping, not real security — see the comment in config.js.
+  async function sha256Hex(str) {
+    const bytes = new TextEncoder().encode(str);
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  }
+
+  async function hashName(name) {
+    const list = SITE_CONFIG.accessList;
+    const salt = (list && list.salt) || "";
+    return sha256Hex(salt + normalizeName(name));
+  }
+
+  async function isAuthorized(name) {
     const list = SITE_CONFIG.accessList;
     if (!list || !list.enabled) return true;
-    const norm = normalizeName(name);
-    return list.names.some((n) => normalizeName(n) === norm);
+    if (!window.crypto || !window.crypto.subtle) return true; // insecure context (e.g. plain http) — fail open rather than lock everyone out
+    const hash = await hashName(name);
+    return list.hashes.includes(hash);
   }
+
+  // Console helper for adding a new student later without re-editing
+  // through an AI assistant: open dev tools on the live site and run
+  //   await __hashName("Their Name")
+  // then paste the printed hash into config.js's accessList.hashes.
+  window.__hashName = async (name) => {
+    const hash = await hashName(name);
+    console.log(hash);
+    return hash;
+  };
 
   // ── Font-load gate ───────────────────────────────────────
   // The gate's entrance animation is written in CSS as "paused"
@@ -94,9 +123,9 @@
   }
 
   // ── Init ───────────────────────────────────────────────
-  function init() {
+  async function init() {
     const saved = localStorage.getItem("c12_name");
-    if (saved && isAuthorized(saved)) {
+    if (saved && (await isAuthorized(saved))) {
       gate.classList.add("hidden");
       showApp(saved);
     } else {
@@ -134,12 +163,12 @@
   }
 
   // ── Name Gate ──────────────────────────────────────────
-  function onNameSubmit(e) {
+  async function onNameSubmit(e) {
     e.preventDefault();
     const name = nameInput.value.trim();
     if (!name) return;
 
-    if (!isAuthorized(name)) {
+    if (!(await isAuthorized(name))) {
       logAttempt(name, false);
       showGateError("You're not authorized to view this page. Please enter your actual name.");
       return;
