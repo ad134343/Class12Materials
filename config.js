@@ -9,16 +9,15 @@ const SITE_CONFIG = {
   title: "Class 12 Study Portal",
   subtitle: "Complete study material — Notes, Formulas & Solutions",
 
-  // ── Formspree (Visitor Logging) ─────────────────────────────
-  //  Every time someone types their name on the gate and hits
-  //  Continue, their name is POSTed here in the background —
-  //  Formspree emails you a notification with who just logged in.
-  //  Note: Formspree checks the sending domain against the one
-  //  registered on your form at formspree.io — if you serve this
-  //  site from a different host later, add that host in your
-  //  Formspree dashboard or submissions will be blocked silently.
-  formspree: {
-    endpoint: "https://formspree.io/f/moeqnqrq",
+  // ── Activity Logging (Login / View / Download) ──────────────
+  //  Every login, PDF view, and PDF download is POSTed here in the
+  //  background and appended as a row to a Google Sheet — no email
+  //  firehose, just a running log you can open any time.
+  //  Setup: see google-apps-script.gs (in this folder) for the
+  //  script to paste into script.google.com, deploy as a Web App,
+  //  then paste the /exec URL below.
+  logging: {
+    endpoint: "https://script.google.com/macros/s/AKfycbyCxzv0vgzL9yrQj5i7WBL71g9TQlWglQOVFDFNj4x88Jy8thu8l-ZtFp-id5NpYI8J/exec",
   },
 
   // ── Access List (Who Can Log In) ─────────────────────────────

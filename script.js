@@ -44,9 +44,10 @@
   const gateField   = $(".gate__field");
 
   // ── State ──────────────────────────────────────────────
-  let curView    = "home";
-  let curSubject = null;
-  let curFolder  = null;
+  let curView     = "home";
+  let curSubject  = null;
+  let curFolder   = null;
+  let currentName = "";
 
   // ── Helpers ────────────────────────────────────────────
   function encodePath(p) {
@@ -141,6 +142,9 @@
       localStorage.removeItem("c12_name");
       location.reload();
     });
+    viewerDl.addEventListener("click", () => {
+      logEvent("download", currentName, viewerName.textContent);
+    });
     viewerClose.addEventListener("click", closeViewer);
     viewerOverlay.addEventListener("click", closeViewer);
     document.addEventListener("keydown", (e) => {
@@ -169,14 +173,14 @@
     if (!name) return;
 
     if (!(await isAuthorized(name))) {
-      logAttempt(name, false);
+      logEvent("login", name, "unauthorized");
       showGateError("You're not authorized to view this page. Please enter your actual name.");
       return;
     }
 
     hideGateError();
     localStorage.setItem("c12_name", name);
-    logAttempt(name, true);
+    logEvent("login", name, "authorized");
     gate.classList.add("fade-out");
     setTimeout(() => { gate.classList.add("hidden"); showApp(name); }, 650);
   }
@@ -195,35 +199,40 @@
   }
 
   function showApp(name) {
+    currentName = name;
     app.classList.remove("hidden");
     greeting.textContent = `Hi, ${name}`;
     nav("home");
   }
 
-  function logAttempt(name, wasAuthorized) {
-    const endpoint = SITE_CONFIG.formspree && SITE_CONFIG.formspree.endpoint;
-    if (!endpoint) return;
-    const fd = new FormData();
-    fd.append("name", name);
-    fd.append(
-      "_subject",
-      wasAuthorized
-        ? `${name} just signed in — Class 12 Study Portal`
-        : `Unauthorized attempt: "${name}" — Class 12 Study Portal`
-    );
-    fd.append(
-      "message",
-      wasAuthorized
-        ? `${name} logged in to the Class 12 study portal just now.`
-        : `Someone tried to log in as "${name}" and was NOT on the access list.`
-    );
-    // Accept: application/json tells Formspree to respond with JSON
-    // instead of redirecting, which is what makes this work as a
-    // silent background call instead of navigating the page away.
+  // Generic activity logger — fires a silent background POST to the
+  // Google Apps Script Web App URL in config.js, which appends a row
+  // to a Google Sheet. Used for logins, PDF views, and PDF downloads.
+  //
+  // type:   "login" | "view" | "download"
+  // detail: free-form extra info (e.g. the file name, or whether a
+  //         login attempt was authorized)
+  //
+  // Note on mode: "no-cors" — Apps Script Web Apps don't answer the
+  // CORS preflight browsers send for JSON POSTs, so a normal fetch
+  // would fail silently anyway. "no-cors" plus a text/plain content
+  // type keeps this a "simple request" (no preflight), and the sheet
+  // still gets the row even though we can't read the response — same
+  // fire-and-forget shape as the old Formspree call.
+  function logEvent(type, name, detail) {
+    const endpoint = SITE_CONFIG.logging && SITE_CONFIG.logging.endpoint;
+    if (!endpoint || endpoint.indexOf("PASTE_YOUR") === 0) return;
     fetch(endpoint, {
       method: "POST",
-      headers: { Accept: "application/json" },
-      body: fd
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({
+        type,
+        name: name || "",
+        detail: detail || "",
+        time: new Date().toISOString(),
+        page: location.href
+      })
     }).catch(() => {});
   }
 
@@ -353,7 +362,10 @@
       dlBtn.href = encodePath(file.path);
       dlBtn.download = file.name;
       dlBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download`;
-      dlBtn.addEventListener("click", (e) => e.stopPropagation());
+      dlBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        logEvent("download", currentName, file.name);
+      });
 
       overlay.append(viewBtn, dlBtn);
       preview.appendChild(overlay);
@@ -417,6 +429,7 @@
     viewerFrame.src = encoded;
     viewer.classList.remove("hidden");
     document.body.style.overflow = "hidden";
+    logEvent("view", currentName, name);
   }
 
   function closeViewer() {
