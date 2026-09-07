@@ -110,10 +110,10 @@ const SITE_CONFIG = {
       "12cc1d85df8f176c723d06a0ec39439f357bf6b27d5ee5d8c2e0239c0b96f50b", // Divyansh
     ],
     deviceIds: [
-      // "paste device fingerprint here once you have it from the log sheet"
+      "f82ca29988dd2decdb99f8903283966d6ad163b81787ed1bd49f7acfc60effe8",
     ],
     ips: [
-      // "paste his current IP here if you want the bonus layer — expect to update it"
+      "103.201.146.230", // expect this to change if he's on mobile data
     ],
     message: "You have been suspended from using this website due to inappropriate behaviour.",
   },
