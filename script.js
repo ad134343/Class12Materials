@@ -31,14 +31,18 @@
 
   // ── Thumbnail lazy-load + concurrency throttle ─────────
   // Opening a folder used to fire off a full pdf.js load for EVERY
-  // file in it at once — for a folder of 10-16 scanned chapters at
-  // up to ~30MB each, that's hundreds of MB competing for bandwidth
-  // simultaneously before the user has even picked a file. Two fixes
-  // combined: (1) only start loading a thumbnail once its card has
-  // actually scrolled into view, and (2) never run more than
-  // THUMBNAIL_CONCURRENCY of those loads at the same time — the rest
-  // wait in a queue and pick up as earlier ones finish.
-  const THUMBNAIL_CONCURRENCY = 2;
+  // file in it at once, which could genuinely choke a connection on
+  // a folder with many large files. But capping it too low backfires
+  // just as badly: with only a couple of slots open, a small file
+  // sitting near the back of an 8-file folder has to wait for
+  // several bigger files ahead of it to finish before it even starts
+  // — so a quick 4MB file can *look* like it took 45 seconds when
+  // really it spent most of that time queued, not downloading.
+  // 4 concurrent is a better balance for realistic folder sizes here
+  // (single digits to ~17MB each) — enough parallelism that nothing
+  // sits queued for long, while still well short of firing off every
+  // file in a folder simultaneously.
+  const THUMBNAIL_CONCURRENCY = 4;
   let activeThumbnailLoads = 0;
   const thumbnailQueue = [];
 
@@ -647,6 +651,10 @@
   }
 
   // ── PDF Thumbnail Rendering (pdf.js) ───────────────────
+  // Caches a small JPEG snapshot of each rendered thumbnail so the
+  // viewer can show it instantly as a placeholder — see openViewer.
+  const thumbnailImageCache = new Map();
+
   function renderThumbnail(path, canvas, skeleton) {
     const textEl = skeleton.querySelector(".file-card__skeleton-text");
     if (!window.pdfjsLib) {
@@ -681,6 +689,14 @@
       return page.render({ canvasContext: ctx, viewport: viewport }).promise.then(() => {
         skeleton.style.display = "none";
         canvas.style.display = "block";
+        try {
+          // Low quality is fine — this is only ever shown briefly,
+          // scaled up, as a stand-in for the real page.
+          thumbnailImageCache.set(path, canvas.toDataURL("image/jpeg", 0.7));
+        } catch {
+          // toDataURL can throw in odd browser/security configs —
+          // just skip the placeholder for this file, not fatal.
+        }
       });
     }).catch(() => {
       textEl.textContent = "PDF";
@@ -704,6 +720,7 @@
   let currentPdf = null;
   let viewerZoom = 1;
   let pagesInner = null; // scaled independently of the scrolling outer container, so a live pinch can transform it without fighting scroll
+  let viewerPlaceholder = null; // instant cached-thumbnail stand-in, removed once the real page 1 renders
   const ZOOM_MIN = 0.5;
   const ZOOM_MAX = 3;
   const ZOOM_INCREMENT = 0.25;
@@ -723,17 +740,34 @@
 
     const myToken = ++viewerLoadToken; // guards against a stale render finishing after the viewer's been closed/reopened
 
+    // Instant placeholder: if this file's thumbnail already rendered
+    // in the folder grid, show that cached snapshot immediately —
+    // zero wait — while the real high-res pages load behind it. Purely
+    // a perceived-speed trick: nothing here is a network request.
+    let placeholder = null;
+    const cachedThumb = thumbnailImageCache.get(path);
+    if (cachedThumb) {
+      placeholder = el("img", "viewer__placeholder");
+      placeholder.src = cachedThumb;
+      pagesInner.appendChild(placeholder);
+      viewerPages.appendChild(pagesInner);
+    }
+    viewerPlaceholder = placeholder;
+
     // Real progress bar instead of a plain "Loading…" label — a
     // determinate fill once the file size is known, falling back to
     // an indeterminate sliding animation if the server doesn't report
     // Content-Length. The point is just to keep showing the person
     // something is actively happening so they don't give up and leave.
     const status = el("div", "viewer__status");
-    const statusText = el("p", "viewer__status-text", "Loading document…");
+    const statusText = el("p", "viewer__status-text", placeholder ? "Loading full quality…" : "Loading document…");
     const track = el("div", "viewer__progress-track viewer__progress-track--indeterminate");
     const fill = el("div", "viewer__progress-fill");
     track.appendChild(fill);
     status.append(statusText, track);
+    if (placeholder) {
+      status.classList.add("viewer__status--over-placeholder");
+    }
     viewerPages.appendChild(status);
 
     if (!window.pdfjsLib) {
@@ -800,6 +834,14 @@
         canvas.style.width = `${displayWidth}px`;
         canvas.style.height = `${viewport.height / dpr}px`;
         pagesInner.appendChild(canvas);
+
+        // The real page 1 has arrived — swap out the instant cached
+        // placeholder now instead of leaving it stacked above the
+        // genuine pages.
+        if (pageNum === 1 && viewerPlaceholder) {
+          viewerPlaceholder.remove();
+          viewerPlaceholder = null;
+        }
 
         const ctx = canvas.getContext("2d");
         return page.render({ canvasContext: ctx, viewport }).promise;
@@ -889,6 +931,7 @@
     viewerLoadToken++; // invalidate any render still in flight
     currentPdf = null;
     pagesInner = null;
+    viewerPlaceholder = null;
     viewerPages.innerHTML = "";
     viewerPages.scrollTop = 0;
     document.body.style.overflow = "";
