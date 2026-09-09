@@ -115,17 +115,19 @@ html.fonts-ready .am-mark--gate { animation-play-state: running; }
 }
 
 .am-mark--viewer {
-  width: 26px;
-  height: auto;
+  width: 14px;
+  height: 9px;
   color: var(--brass);
   opacity: 1;
+  flex-shrink: 0;
 }
 
 .am-mark--credit {
-  width: 12px;
-  height: auto;
+  width: 9px;
+  height: 6px;
   color: var(--brass);
   vertical-align: -1px;
+  flex-shrink: 0;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -836,7 +838,17 @@ html.fonts-ready .gate__spine {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 14px;
+  /* Hard-capped height — this bar was previously sizing itself off
+     its (much larger) contents, which is what let it balloon to a
+     third of the screen on some devices. Fixing height/min-height/
+     max-height to the same value, plus overflow:hidden, means the
+     bar physically cannot grow past this no matter what renders
+     inside it — roughly a sixth of its old on-screen footprint. */
+  height: 30px;
+  min-height: 30px;
+  max-height: 30px;
+  overflow: hidden;
+  padding: 0 10px;
   background: var(--ink);
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
@@ -852,28 +864,33 @@ html.fonts-ready .gate__spine {
 .viewer__brand {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
   min-width: 0;
   flex: 1 1 auto;
   overflow: hidden;
+  height: 100%;
 }
 
 .viewer__brand-text {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   min-width: 0;
+  overflow: hidden;
 }
 
 .viewer__credit {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   font-family: var(--sans);
-  font-size: 11px;
+  font-size: 8.5px;
+  line-height: 1;
   font-weight: 600;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.4px;
   text-transform: uppercase;
   color: var(--paper-faint);
+  white-space: nowrap;
 }
 
 /* The filename is dropped from the bar itself — it's already shown
@@ -903,8 +920,9 @@ html.fonts-ready .gate__spine {
   background: none;
   color: var(--paper-faint);
   border: 1px solid var(--line-strong);
-  width: 24px;
-  padding: 5px;
+  width: 20px;
+  height: 20px;
+  padding: 4px;
 }
 
 .viewer__btn--close:hover { border-color: rgba(176, 99, 73, 0.5); color: var(--chemistry); }
@@ -1143,8 +1161,8 @@ html.fonts-ready .gate__spine {
   .gate__field { min-width: 140px; }
   .gate__spine { display: none; }
 
-  .viewer__bar { padding: 4px 12px; gap: 8px; }
-  .am-mark--viewer { width: 22px; }
+  .viewer__bar { padding: 0 10px; gap: 6px; }
+  .am-mark--viewer { width: 14px; height: 9px; }
   .viewer__pages {
     padding: 16px 10px 110px;
     padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px));
