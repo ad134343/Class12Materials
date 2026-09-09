@@ -378,16 +378,24 @@
   }
 
   // ── Session persistence ──────────────────────────────────
+  //  sessionStorage, not localStorage: localStorage is shared by
+  //  every tab/WebView instance for this domain — including a brand
+  //  new one Chrome/Safari spins up the next time someone taps the
+  //  same WhatsApp link. That's what made a second tap silently
+  //  resume the previous person's login instead of asking fresh.
+  //  sessionStorage is scoped to that one tab/instance and is wiped
+  //  the moment it's actually closed, so a fresh tap always starts
+  //  with nothing stored — while still keeping someone logged in
+  //  normally while they navigate around inside the same open tab.
   //  Stored as JSON {name, ts} rather than a bare name, so we can
-  //  tell how long ago the login happened and expire it after
-  //  SITE_CONFIG.session.expiryHours — this is what forces a fresh
-  //  login on a browser that's been left open (or cached) for a while.
+  //  also expire it after SITE_CONFIG.session.expiryMinutes if that
+  //  same tab is just left open and idle for a long stretch.
   function saveSession(name) {
-    localStorage.setItem("c12_name", JSON.stringify({ name, ts: Date.now() }));
+    sessionStorage.setItem("c12_name", JSON.stringify({ name, ts: Date.now() }));
   }
 
   function readSession() {
-    const raw = localStorage.getItem("c12_name");
+    const raw = sessionStorage.getItem("c12_name");
     if (!raw) return null;
 
     let parsed;
@@ -408,7 +416,7 @@
   }
 
   function clearSession() {
-    localStorage.removeItem("c12_name");
+    sessionStorage.removeItem("c12_name");
   }
 
   // ── Init ───────────────────────────────────────────────
@@ -482,6 +490,10 @@
 
     viewerClose.addEventListener("click", closeViewer);
     viewerOverlay.addEventListener("click", closeViewer);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", syncViewerViewport);
+      window.visualViewport.addEventListener("scroll", syncViewerViewport);
+    }
     $("#viewerZoomIn").addEventListener("click", zoomIn);
     $("#viewerZoomOut").addEventListener("click", zoomOut);
     viewerPages.addEventListener("touchstart", onViewerTouchStart, { passive: true });
@@ -938,12 +950,30 @@
   const ZOOM_MAX = 3;
   const ZOOM_INCREMENT = 0.25;
 
+  // ── Viewer viewport pinning ──────────────────────────────
+  // In-app browsers (WhatsApp's, Chrome Custom Tabs, etc.) animate
+  // their own toolbar in and out as you scroll, and some of them
+  // don't reliably re-fire layout for a `position: fixed; inset: 0`
+  // element when that happens — the toolbar collapses but the page
+  // keeps painting as if it were still there, leaving a dead gap the
+  // exact height of the vanished toolbar at the very top, above
+  // everything including our bar. CSS alone can't detect that; the
+  // VisualViewport API can, so we actively re-pin the viewer to it
+  // whenever the browser reports its chrome changed.
+  function syncViewerViewport() {
+    if (!window.visualViewport || viewer.classList.contains("hidden")) return;
+    const vv = window.visualViewport;
+    viewer.style.top = `${vv.offsetTop}px`;
+    viewer.style.height = `${vv.height}px`;
+  }
+
   function openViewer(path, name) {
     endCurrentView(); // in case a different PDF was already open — close out its timer first
     const encoded = encodePath(path);
     viewerName.textContent = name;
     viewer.classList.remove("hidden");
     document.body.style.overflow = "hidden";
+    syncViewerViewport();
     currentViewId = makeId();
     currentViewName = name;
     currentViewActiveMs = 0;
@@ -1147,6 +1177,8 @@
   function closeViewer() {
     endCurrentView();
     viewer.classList.add("hidden");
+    viewer.style.top = "";
+    viewer.style.height = "";
     viewerLoadToken++; // invalidate any render still in flight
     currentPdf = null;
     pagesInner = null;
