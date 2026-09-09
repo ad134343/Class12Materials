@@ -29,6 +29,60 @@
     return pdfLoadingTasks.get(encodedPath);
   }
 
+  // ── Thumbnail lazy-load + concurrency throttle ─────────
+  // Opening a folder used to fire off a full pdf.js load for EVERY
+  // file in it at once — for a folder of 10-16 scanned chapters at
+  // up to ~30MB each, that's hundreds of MB competing for bandwidth
+  // simultaneously before the user has even picked a file. Two fixes
+  // combined: (1) only start loading a thumbnail once its card has
+  // actually scrolled into view, and (2) never run more than
+  // THUMBNAIL_CONCURRENCY of those loads at the same time — the rest
+  // wait in a queue and pick up as earlier ones finish.
+  const THUMBNAIL_CONCURRENCY = 2;
+  let activeThumbnailLoads = 0;
+  const thumbnailQueue = [];
+
+  function queueThumbnailLoad(task) {
+    thumbnailQueue.push(task);
+    drainThumbnailQueue();
+  }
+
+  function drainThumbnailQueue() {
+    while (activeThumbnailLoads < THUMBNAIL_CONCURRENCY && thumbnailQueue.length) {
+      const task = thumbnailQueue.shift();
+      activeThumbnailLoads++;
+      task().finally(() => {
+        activeThumbnailLoads--;
+        drainThumbnailQueue();
+      });
+    }
+  }
+
+  let thumbObserver = null;
+  function observeThumbnail(target, path, canvas, skeleton) {
+    if (!("IntersectionObserver" in window)) {
+      // No IntersectionObserver support — fall back to loading
+      // immediately (still throttled by the concurrency queue above).
+      queueThumbnailLoad(() => renderThumbnail(path, canvas, skeleton));
+      return;
+    }
+    if (!thumbObserver) {
+      thumbObserver = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            thumbObserver.unobserve(entry.target);
+            const data = entry.target.__thumbData;
+            if (data) queueThumbnailLoad(() => renderThumbnail(data.path, data.canvas, data.skeleton));
+          });
+        },
+        { rootMargin: "300px 0px", threshold: 0.01 }
+      );
+    }
+    target.__thumbData = { path, canvas, skeleton };
+    thumbObserver.observe(target);
+  }
+
   // ── Line icons (no emoji) ───────────────────────────────
   const ICONS = {
     maths: `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.2 20h15.6z"/><path d="M12 3v17"/><circle cx="12" cy="3" r="1" fill="currentColor" stroke="none"/></svg>`,
@@ -333,6 +387,10 @@
     viewerOverlay.addEventListener("click", closeViewer);
     $("#viewerZoomIn").addEventListener("click", zoomIn);
     $("#viewerZoomOut").addEventListener("click", zoomOut);
+    viewerPages.addEventListener("touchstart", onViewerTouchStart, { passive: true });
+    viewerPages.addEventListener("touchmove", onViewerTouchMove, { passive: false });
+    viewerPages.addEventListener("touchend", onViewerTouchEnd, { passive: true });
+    viewerPages.addEventListener("touchcancel", onViewerTouchEnd, { passive: true });
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") closeViewer();
 
@@ -558,7 +616,7 @@
       const canvas = document.createElement("canvas");
       canvas.style.display = "none";
       preview.appendChild(canvas);
-      renderThumbnail(file.path, canvas, skeleton);
+      observeThumbnail(preview, file.path, canvas, skeleton);
 
       const overlay = el("div", "file-card__overlay");
 
@@ -590,15 +648,25 @@
 
   // ── PDF Thumbnail Rendering (pdf.js) ───────────────────
   function renderThumbnail(path, canvas, skeleton) {
+    const textEl = skeleton.querySelector(".file-card__skeleton-text");
     if (!window.pdfjsLib) {
-      skeleton.querySelector(".file-card__skeleton-text").textContent = "PDF";
-      return;
+      textEl.textContent = "PDF";
+      return Promise.resolve();
     }
 
     const encoded = encodePath(path);
     const loading = getPdfLoadingTask(encoded);
 
-    loading.promise.then((pdf) => {
+    // Only wire progress onto the skeleton if nothing else (e.g. an
+    // already-open viewer for this same file) has claimed the task's
+    // progress callback since.
+    loading.onProgress = (p) => {
+      if (p.total) {
+        textEl.textContent = `Loading… ${Math.min(100, Math.round((p.loaded / p.total) * 100))}%`;
+      }
+    };
+
+    return loading.promise.then((pdf) => {
       return pdf.getPage(1);
     }).then((page) => {
       const desiredWidth = 400;
@@ -615,7 +683,7 @@
         canvas.style.display = "block";
       });
     }).catch(() => {
-      skeleton.querySelector(".file-card__skeleton-text").textContent = "PDF";
+      textEl.textContent = "PDF";
       skeleton.style.animation = "none";
     });
   }
@@ -635,7 +703,10 @@
   let viewerLoadToken = 0;
   let currentPdf = null;
   let viewerZoom = 1;
-  const ZOOM_STEPS = [0.75, 1, 1.25, 1.5, 2, 2.5, 3];
+  let pagesInner = null; // scaled independently of the scrolling outer container, so a live pinch can transform it without fighting scroll
+  const ZOOM_MIN = 0.5;
+  const ZOOM_MAX = 3;
+  const ZOOM_INCREMENT = 0.25;
 
   function openViewer(path, name) {
     const encoded = encodePath(path);
@@ -648,12 +719,26 @@
     currentPdf = null;
     viewerZoom = 1;
     updateZoomLabel();
+    pagesInner = el("div", "viewer__pages-inner");
+
     const myToken = ++viewerLoadToken; // guards against a stale render finishing after the viewer's been closed/reopened
-    const status = el("div", "viewer__status", "Loading…");
+
+    // Real progress bar instead of a plain "Loading…" label — a
+    // determinate fill once the file size is known, falling back to
+    // an indeterminate sliding animation if the server doesn't report
+    // Content-Length. The point is just to keep showing the person
+    // something is actively happening so they don't give up and leave.
+    const status = el("div", "viewer__status");
+    const statusText = el("p", "viewer__status-text", "Loading document…");
+    const track = el("div", "viewer__progress-track viewer__progress-track--indeterminate");
+    const fill = el("div", "viewer__progress-fill");
+    track.appendChild(fill);
+    status.append(statusText, track);
     viewerPages.appendChild(status);
 
     if (!window.pdfjsLib) {
-      status.textContent = "Couldn't load the PDF viewer. Please refresh and try again.";
+      statusText.textContent = "Couldn't load the PDF viewer. Please refresh and try again.";
+      track.remove();
       return;
     }
 
@@ -665,7 +750,10 @@
     task.onProgress = (p) => {
       if (myToken !== viewerLoadToken) return;
       if (p.total) {
-        status.textContent = `Loading… ${Math.min(100, Math.round((p.loaded / p.total) * 100))}%`;
+        track.classList.remove("viewer__progress-track--indeterminate");
+        const pct = Math.min(100, Math.round((p.loaded / p.total) * 100));
+        fill.style.width = `${pct}%`;
+        statusText.textContent = `Loading… ${pct}%`;
       }
     };
 
@@ -673,15 +761,18 @@
       if (myToken !== viewerLoadToken) return;
       currentPdf = pdf;
       status.remove();
+      viewerPages.appendChild(pagesInner);
       return renderAllPages(myToken);
     }).catch(() => {
       if (myToken !== viewerLoadToken) return;
-      status.textContent = "Couldn't load this PDF. Please try again.";
+      statusText.textContent = "Couldn't load this PDF. Please try again.";
+      track.remove();
     });
   }
 
   function renderAllPages(token) {
-    viewerPages.querySelectorAll(".viewer__page").forEach((c) => c.remove());
+    if (!pagesInner) return Promise.resolve();
+    pagesInner.querySelectorAll(".viewer__page").forEach((c) => c.remove());
     const pdf = currentPdf;
     if (!pdf) return Promise.resolve();
 
@@ -708,7 +799,7 @@
         canvas.height = viewport.height;
         canvas.style.width = `${displayWidth}px`;
         canvas.style.height = `${viewport.height / dpr}px`;
-        viewerPages.appendChild(canvas);
+        pagesInner.appendChild(canvas);
 
         const ctx = canvas.getContext("2d");
         return page.render({ canvasContext: ctx, viewport }).promise;
@@ -729,7 +820,12 @@
     if (label) label.textContent = `${Math.round(viewerZoom * 100)}%`;
   }
 
+  function clampZoom(z) {
+    return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+  }
+
   function setZoom(next) {
+    next = Math.round(clampZoom(next) * 100) / 100;
     if (!currentPdf || next === viewerZoom) return;
     viewerZoom = next;
     updateZoomLabel();
@@ -738,19 +834,61 @@
   }
 
   function zoomIn() {
-    const idx = ZOOM_STEPS.indexOf(viewerZoom);
-    setZoom(ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, (idx === -1 ? 1 : idx) + 1)]);
+    setZoom(viewerZoom + ZOOM_INCREMENT);
   }
 
   function zoomOut() {
-    const idx = ZOOM_STEPS.indexOf(viewerZoom);
-    setZoom(ZOOM_STEPS[Math.max(0, (idx === -1 ? 1 : idx) - 1)]);
+    setZoom(viewerZoom - ZOOM_INCREMENT);
+  }
+
+  // ── Pinch-to-zoom ────────────────────────────────────────
+  // Native pinch was disabled on purpose (touch-action: pan-x pan-y
+  // in CSS) because it just stretches the already-rendered canvas —
+  // pinch out far enough and it goes visibly blurry. This gives the
+  // same real pinch gesture back without that trade-off: while the
+  // fingers are moving, a cheap CSS transform on the pages wrapper
+  // tracks them live for instant visual feedback; the moment the
+  // gesture ends, the transform resets and a single real re-render
+  // happens at the new zoom level through the normal high-res path.
+  let pinchStartDist = null;
+  let pinchStartZoom = 1;
+  let pinchLiveZoom = null;
+
+  function touchDistance(touches) {
+    const [a, b] = touches;
+    return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+  }
+
+  function onViewerTouchStart(e) {
+    if (e.touches.length === 2 && currentPdf) {
+      pinchStartDist = touchDistance(e.touches);
+      pinchStartZoom = viewerZoom;
+    }
+  }
+
+  function onViewerTouchMove(e) {
+    if (e.touches.length === 2 && pinchStartDist && pagesInner) {
+      e.preventDefault();
+      const scale = touchDistance(e.touches) / pinchStartDist;
+      pinchLiveZoom = clampZoom(pinchStartZoom * scale);
+      pagesInner.style.transform = `scale(${pinchLiveZoom / pinchStartZoom})`;
+    }
+  }
+
+  function onViewerTouchEnd(e) {
+    if (pinchStartDist !== null && e.touches.length < 2) {
+      pinchStartDist = null;
+      if (pagesInner) pagesInner.style.transform = "";
+      if (pinchLiveZoom !== null) setZoom(pinchLiveZoom);
+      pinchLiveZoom = null;
+    }
   }
 
   function closeViewer() {
     viewer.classList.add("hidden");
     viewerLoadToken++; // invalidate any render still in flight
     currentPdf = null;
+    pagesInner = null;
     viewerPages.innerHTML = "";
     viewerPages.scrollTop = 0;
     document.body.style.overflow = "";
