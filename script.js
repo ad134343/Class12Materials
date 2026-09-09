@@ -123,6 +123,25 @@
   let curFolder   = null;
   let currentName = "";
 
+  // ── Session / view tracking (for the activity log) ──────
+  // sessionId identifies one "visit" (from the app becoming visible
+  // to the tab closing/reloading/logging out). viewId identifies one
+  // PDF being open. Both are randomly generated client-side purely to
+  // let rows in the Log sheet be grouped back into a readable trail —
+  // they carry no personal info themselves.
+  let sessionId          = null;
+  let sessionStart        = null;
+  let currentViewId       = null;
+  let currentViewName     = null;
+  let currentViewActiveMs = 0;   // accumulated foreground time for the open PDF
+  let currentViewResumedAt = null; // timestamp the PDF most recently became foregrounded
+  let heartbeatTimer      = null;
+
+  function makeId() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return Date.now().toString(36) + Math.random().toString(36).slice(2);
+  }
+
   // ── Helpers ────────────────────────────────────────────
   function encodePath(p) {
     return p.split("/").map((s) => encodeURIComponent(s)).join("/");
@@ -384,9 +403,38 @@
     nameInput.addEventListener("input", hideGateError);
     homeBtn.addEventListener("click", () => nav("home"));
     logoutBtn.addEventListener("click", () => {
+      endCurrentView();
+      if (sessionId) {
+        const seconds = sessionStart ? Math.round((Date.now() - sessionStart) / 1000) : "";
+        logEventBeacon("session_end", currentName, "logout", undefined, { duration: seconds });
+      }
+      stopHeartbeat();
       clearSession();
       location.reload();
     });
+    document.addEventListener("visibilitychange", () => {
+      if (!currentViewId) return;
+      if (document.hidden) {
+        if (currentViewResumedAt !== null) {
+          currentViewActiveMs += Date.now() - currentViewResumedAt;
+          currentViewResumedAt = null;
+        }
+      } else {
+        currentViewResumedAt = Date.now();
+      }
+    });
+
+    // Fires on tab close, browser close, and reload — the one moment
+    // a normal fetch can't be trusted to finish, so both of these go
+    // out via sendBeacon instead (see logEventBeacon above).
+    window.addEventListener("pagehide", () => {
+      endCurrentView();
+      if (sessionId) {
+        const seconds = sessionStart ? Math.round((Date.now() - sessionStart) / 1000) : "";
+        logEventBeacon("session_end", currentName, "closed", undefined, { duration: seconds });
+      }
+    });
+
     viewerClose.addEventListener("click", closeViewer);
     viewerOverlay.addEventListener("click", closeViewer);
     $("#viewerZoomIn").addEventListener("click", zoomIn);
@@ -472,18 +520,47 @@
 
   function showApp(name) {
     currentName = name;
+    sessionId = makeId();
+    sessionStart = Date.now();
     app.classList.remove("hidden");
     greeting.textContent = `Hi, ${name}`;
+    logEvent("session_start", name, "");
+    startHeartbeat();
     nav("home");
+  }
+
+  // ── Heartbeat ("who's on the site right now") ───────────
+  function startHeartbeat() {
+    stopHeartbeat();
+    heartbeatTimer = setInterval(sendHeartbeat, 45000);
+    sendHeartbeat(); // so Presence shows them immediately, not after 45s
+  }
+
+  function stopHeartbeat() {
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+    }
+  }
+
+  function sendHeartbeat() {
+    if (!sessionId) return;
+    const where = currentViewId
+      ? `viewing: ${currentViewName}`
+      : (curFolder ? curFolder.name : curSubject ? curSubject.name : "home");
+    logEvent("heartbeat", currentName, where);
   }
 
   // Generic activity logger — fires a silent background POST to the
   // Google Apps Script Web App URL in config.js, which appends a row
-  // to a Google Sheet. Used for logins, PDF views, and PDF downloads.
+  // to a Google Sheet. Used for logins, PDF views, navigation, and
+  // session start/end.
   //
-  // type:   "login" | "view" | "download"
+  // type:   "login" | "session_start" | "session_end" | "view" |
+  //         "view_end" | "navigate" | "heartbeat"
   // detail: free-form extra info (e.g. the file name, or whether a
   //         login attempt was authorized)
+  // extra:  optional { viewId, duration } — duration is in seconds
   //
   // Note on mode: "no-cors" — Apps Script Web Apps don't answer the
   // CORS preflight browsers send for JSON POSTs, so a normal fetch
@@ -491,20 +568,52 @@
   // type keeps this a "simple request" (no preflight), and the sheet
   // still gets the row even though we can't read the response — same
   // fire-and-forget shape as the old Formspree call.
-  function logEvent(type, name, detail, pageOverride) {
+  function buildLogPayload(type, name, detail, pageOverride, extra) {
+    return JSON.stringify({
+      type,
+      name: name || "",
+      detail: detail || "",
+      time: new Date().toISOString(),
+      page: pageOverride || location.href,
+      sessionId: sessionId || "",
+      viewId: (extra && extra.viewId) || "",
+      duration: (extra && extra.duration !== undefined && extra.duration !== null) ? extra.duration : ""
+    });
+  }
+
+  function logEvent(type, name, detail, pageOverride, extra) {
     const endpoint = SITE_CONFIG.logging && SITE_CONFIG.logging.endpoint;
     if (!endpoint || endpoint.indexOf("PASTE_YOUR") === 0) return;
     fetch(endpoint, {
       method: "POST",
       mode: "no-cors",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({
-        type,
-        name: name || "",
-        detail: detail || "",
-        time: new Date().toISOString(),
-        page: pageOverride || location.href
-      })
+      body: buildLogPayload(type, name, detail, pageOverride, extra)
+    }).catch(() => {});
+  }
+
+  // Same as logEvent, but for events that need to survive the tab
+  // actually closing (session end, a PDF view ending as someone
+  // leaves). A normal fetch can get killed mid-flight when the page
+  // unloads; sendBeacon is built specifically to still deliver in
+  // that moment. Falls back to a keepalive fetch on old browsers.
+  function logEventBeacon(type, name, detail, pageOverride, extra) {
+    const endpoint = SITE_CONFIG.logging && SITE_CONFIG.logging.endpoint;
+    if (!endpoint || endpoint.indexOf("PASTE_YOUR") === 0) return;
+    const payload = buildLogPayload(type, name, detail, pageOverride, extra);
+    if (navigator.sendBeacon) {
+      try {
+        if (navigator.sendBeacon(endpoint, payload)) return;
+      } catch {
+        // fall through to fetch below
+      }
+    }
+    fetch(endpoint, {
+      method: "POST",
+      mode: "no-cors",
+      keepalive: true,
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: payload
     }).catch(() => {});
   }
 
@@ -515,6 +624,11 @@
     curFolder = folderId && curSubject ? curSubject.subfolders.find((f) => f.id === folderId) : null;
     updateCrumbs();
     render();
+
+    if (sessionId) {
+      const where = curFolder ? `folder:${curFolder.name}` : curSubject ? `subject:${curSubject.name}` : "home";
+      logEvent("navigate", currentName, where);
+    }
   }
 
   function updateCrumbs() {
@@ -726,11 +840,16 @@
   const ZOOM_INCREMENT = 0.25;
 
   function openViewer(path, name) {
+    endCurrentView(); // in case a different PDF was already open — close out its timer first
     const encoded = encodePath(path);
     viewerName.textContent = name;
     viewer.classList.remove("hidden");
     document.body.style.overflow = "hidden";
-    logEvent("view", currentName, name);
+    currentViewId = makeId();
+    currentViewName = name;
+    currentViewActiveMs = 0;
+    currentViewResumedAt = document.hidden ? null : Date.now();
+    logEvent("view", currentName, name, undefined, { viewId: currentViewId });
 
     viewerPages.innerHTML = "";
     currentPdf = null;
@@ -927,6 +1046,7 @@
   }
 
   function closeViewer() {
+    endCurrentView();
     viewer.classList.add("hidden");
     viewerLoadToken++; // invalidate any render still in flight
     currentPdf = null;
@@ -935,6 +1055,23 @@
     viewerPages.innerHTML = "";
     viewerPages.scrollTop = 0;
     document.body.style.overflow = "";
+  }
+
+  // Ends the currently-open PDF's timer (if any) and logs how long it
+  // was actually on screen — foreground time only, since the pause on
+  // tab-hidden/visible below stops the clock while the tab is
+  // backgrounded. Sent via beacon so it survives the tab closing too.
+  function endCurrentView() {
+    if (!currentViewId) return;
+    if (currentViewResumedAt !== null) {
+      currentViewActiveMs += Date.now() - currentViewResumedAt;
+      currentViewResumedAt = null;
+    }
+    const seconds = Math.round(currentViewActiveMs / 1000);
+    logEventBeacon("view_end", currentName, currentViewName, undefined, { viewId: currentViewId, duration: seconds });
+    currentViewId = null;
+    currentViewName = null;
+    currentViewActiveMs = 0;
   }
 
   // ── Utility ────────────────────────────────────────────
