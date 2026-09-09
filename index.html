@@ -9,9 +9,33 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body>
+
+    <!-- Shared AM monogram — every placement below references this via
+         <use>, so the mark stays pixel-identical everywhere and only
+         needs updating in one place. -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+        <symbol id="am-mark" viewBox="0 0 276 177">
+            <g transform="translate(0,177) scale(0.1,-0.1)" stroke="none">
+                <path d="M749 1603 c-11 -27 -91 -212 -176 -413 -86 -201 -223 -522 -304 -714
+                -82 -191 -149 -352 -149 -357 l0 -9 168 0 169 0 69 170 69 170 258 0 257 0 0
+                8 c-1 4 -27 70 -59 147 l-57 140 -137 3 c-75 1 -137 4 -137 6 0 2 43 108 95
+                235 52 128 95 236 95 242 0 36 30 -29 142 -304 70 -171 173 -426 230 -565
+                l102 -252 177 0 177 0 -67 158 c-38 86 -117 272 -177 412 -59 140 -176 415
+                -259 610 l-152 355 -157 3 -156 3 -21 -48z"/>
+                <path d="M1220 1637 c0 -1 53 -127 118 -278 l119 -276 206 -312 c114 -171 210
+                -311 214 -311 5 0 104 145 221 322 l212 322 0 -497 0 -497 170 0 170 0 0 765
+                0 765 -183 0 -183 0 -199 -320 c-110 -176 -202 -320 -205 -320 -3 0 -93 143
+                -202 318 l-196 317 -131 3 c-72 1 -131 1 -131 -1z"/>
+            </g>
+        </symbol>
+    </svg>
 
     <!-- ═══ NAME GATE / COVER ═══ -->
     <div id="gate" class="gate">
@@ -20,6 +44,7 @@
         <div class="gate__noise"></div>
 
         <span class="gate__spine">ISC · Class XII · Study Index</span>
+        <svg class="am-mark am-mark--gate" aria-hidden="true"><use href="#am-mark" xlink:href="#am-mark"></use></svg>
 
         <div class="gate__content">
             <p class="gate__eyebrow">Welcome to</p>
@@ -45,7 +70,10 @@
 
         <nav class="nav">
             <div class="nav__inner">
-                <button class="nav__logo" id="homeBtn">Class 12</button>
+                <button class="nav__logo" id="homeBtn">
+                    <svg class="am-mark am-mark--nav" aria-hidden="true"><use href="#am-mark" xlink:href="#am-mark"></use></svg>
+                    <span>Class 12</span>
+                </button>
                 <div class="nav__right">
                     <span class="nav__greeting" id="greeting"></span>
                     <button class="nav__user" id="logoutBtn" aria-label="Sign out" title="Sign out">
@@ -62,6 +90,10 @@
 
         <footer class="foot">
             <p>Made with care for exam season</p>
+            <p class="foot__credit">
+                <svg class="am-mark am-mark--foot" aria-hidden="true"><use href="#am-mark" xlink:href="#am-mark"></use></svg>
+                Designed by AM
+            </p>
         </footer>
     </div>
 
@@ -70,7 +102,10 @@
         <div class="viewer__overlay" id="viewerOverlay"></div>
         <div class="viewer__shell">
             <div class="viewer__bar">
-                <span class="viewer__name" id="viewerName">Document.pdf</span>
+                <div class="viewer__brand">
+                    <svg class="am-mark am-mark--viewer" aria-hidden="true"><use href="#am-mark" xlink:href="#am-mark"></use></svg>
+                    <span class="viewer__name" id="viewerName">Document.pdf</span>
+                </div>
                 <div class="viewer__actions">
                     <a id="viewerDl" href="#" download class="viewer__btn viewer__btn--dl">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>

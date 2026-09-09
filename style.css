@@ -76,6 +76,54 @@ body::after {
 button, input { font: inherit; color: inherit; }
 
 /* ═══════════════════════════════════════════════════════════════
+   AM MONOGRAM — shared mark, sized/colored per placement below
+   ═══════════════════════════════════════════════════════════════ */
+.am-mark {
+  display: inline-block;
+  fill: currentColor;
+  flex-shrink: 0;
+}
+
+.am-mark--nav {
+  width: 22px;
+  height: auto;
+  color: var(--brass);
+  margin-right: 10px;
+  vertical-align: -3px;
+}
+
+.am-mark--gate {
+  position: absolute;
+  right: 28px;
+  bottom: 28px;
+  width: 26px;
+  height: auto;
+  color: var(--brass-dim);
+  opacity: 0;
+  animation: fadeUp 0.9s var(--ease) both;
+  animation-delay: 1.4s;
+  animation-play-state: paused;
+}
+
+html.fonts-ready .am-mark--gate { animation-play-state: running; }
+
+.am-mark--foot {
+  width: 13px;
+  height: auto;
+  color: var(--paper-faint);
+  vertical-align: -2px;
+  margin-right: 6px;
+}
+
+.am-mark--viewer {
+  width: 16px;
+  height: auto;
+  color: var(--paper-faint);
+  margin-right: 10px;
+  opacity: 0.7;
+}
+
+/* ═══════════════════════════════════════════════════════════════
    NAME GATE / COVER
    ═══════════════════════════════════════════════════════════════ */
 .gate {
@@ -351,6 +399,8 @@ html.fonts-ready .gate__spine {
 }
 
 .nav__logo {
+  display: flex;
+  align-items: center;
   font-family: var(--serif);
   font-style: italic;
   font-size: 20px;
@@ -770,6 +820,14 @@ html.fonts-ready .gate__spine {
   flex-shrink: 0;
 }
 
+.viewer__brand {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
 .viewer__name {
   font-family: var(--sans);
   font-size: 13px;
@@ -777,7 +835,8 @@ html.fonts-ready .gate__spine {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 50%;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .viewer__actions { display: flex; gap: 8px; flex-shrink: 0; }
@@ -821,6 +880,11 @@ html.fonts-ready .gate__spine {
    FOOTER
    ═══════════════════════════════════════════════════════════════ */
 .foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
   text-align: left;
   max-width: var(--max-w);
   margin: 0 auto;
@@ -829,6 +893,11 @@ html.fonts-ready .gate__spine {
   font-family: var(--sans);
   font-size: 12px;
   border-top: 1px solid var(--line);
+}
+
+.foot__credit {
+  display: flex;
+  align-items: center;
 }
 
 /* ═══════════════════════════════════════════════════════════════
