@@ -1103,7 +1103,24 @@
     viewerZoom = next;
     updateZoomLabel();
     const myToken = ++viewerLoadToken; // supersedes any render still in flight from a prior zoom click
-    renderAllPages(myToken);
+
+    // renderAllPages wipes every page canvas before redrawing them at
+    // the new size — and the instant they're removed, the container's
+    // scroll position collapses to 0. Left alone, that meant zooming
+    // while reading (say) page 6 always dumped you back on page 1.
+    // Capture how far down you were as a fraction of the scrollable
+    // height *before* the wipe, then re-apply that same fraction once
+    // the new (differently-sized) pages are back in — since every page
+    // scales by the same zoom factor, the fraction lands you back on
+    // the same page at roughly the same spot within it.
+    const maxScrollBefore = viewerPages.scrollHeight - viewerPages.clientHeight;
+    const scrollRatio = maxScrollBefore > 0 ? viewerPages.scrollTop / maxScrollBefore : 0;
+
+    renderAllPages(myToken).then(() => {
+      if (myToken !== viewerLoadToken) return;
+      const maxScrollAfter = viewerPages.scrollHeight - viewerPages.clientHeight;
+      viewerPages.scrollTop = maxScrollAfter > 0 ? scrollRatio * maxScrollAfter : 0;
+    });
   }
 
   function zoomIn() {

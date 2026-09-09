@@ -432,8 +432,25 @@ html.fonts-ready .gate__spine {
 .nav__right {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 14px;
 }
+
+.nav__contact {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  color: var(--paper-dim);
+  text-decoration: none;
+  flex-shrink: 0;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.nav__contact:hover { border-color: var(--brass-dim); color: var(--brass); }
 
 .nav__greeting {
   font-family: var(--sans);
@@ -1196,6 +1213,9 @@ html.fonts-ready .gate__spine {
 @media (max-width: 640px) {
   .shell { padding: 0 20px; }
   .nav__inner { padding: 0 20px; }
+  .nav__right { gap: 8px; }
+  .nav__contact { width: 26px; height: 26px; }
+  .nav__greeting { max-width: 22vw; }
   .foot { padding: 24px 20px; }
 
   .subjects { grid-template-columns: 1fr; }
