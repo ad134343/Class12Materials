@@ -94,10 +94,10 @@ button, input { font: inherit; color: inherit; }
 
 .am-mark--gate {
   display: block;
-  width: 54px;
+  width: clamp(96px, 26vw, 168px);
   height: auto;
   color: var(--brass);
-  margin-bottom: 18px;
+  margin-bottom: 28px;
   opacity: 0;
   animation: fadeUp 0.9s var(--ease) both;
   animation-delay: 0s;
@@ -115,11 +115,17 @@ html.fonts-ready .am-mark--gate { animation-play-state: running; }
 }
 
 .am-mark--viewer {
-  width: 28px;
+  width: 38px;
   height: auto;
   color: var(--brass);
-  margin-right: 12px;
   opacity: 1;
+}
+
+.am-mark--credit {
+  width: 12px;
+  height: auto;
+  color: var(--brass);
+  vertical-align: -1px;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -822,20 +828,40 @@ html.fonts-ready .gate__spine {
 .viewer__brand {
   display: flex;
   align-items: center;
+  gap: 12px;
   min-width: 0;
   flex: 1 1 auto;
   overflow: hidden;
 }
 
+.viewer__brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.viewer__credit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--paper-faint);
+}
+
 .viewer__name {
   font-family: var(--sans);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--paper-dim);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
-  flex: 1 1 auto;
 }
 
 .viewer__actions { display: flex; gap: 8px; flex-shrink: 0; }
@@ -1075,7 +1101,7 @@ html.fonts-ready .gate__spine {
   .file-card__overlay-btn { padding: 8px 14px; font-size: 12px; width: 108px; }
 
   .gate__content { padding: 0 7vw; }
-  .am-mark--gate { width: 42px; margin-bottom: 14px; }
+  .am-mark--gate { width: 128px; margin-bottom: 22px; }
   .gate__title { letter-spacing: -1px; margin-bottom: 20px; }
   .gate__eyebrow { font-size: 12px; }
   .gate__subtitle { font-size: 14px; margin-bottom: 24px; }
@@ -1084,8 +1110,8 @@ html.fonts-ready .gate__spine {
   .gate__spine { display: none; }
 
   .viewer__bar { padding: 12px 14px; gap: 10px; }
-  .am-mark--viewer { width: 22px; margin-right: 8px; }
-  .viewer__name { max-width: 40%; font-size: 12px; }
+  .am-mark--viewer { width: 32px; }
+  .viewer__name { max-width: 40%; }
   .viewer__pages {
     padding: 16px 10px 110px;
     padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px));
