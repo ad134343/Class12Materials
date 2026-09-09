@@ -115,14 +115,14 @@ html.fonts-ready .am-mark--gate { animation-play-state: running; }
 }
 
 .am-mark--viewer {
-  width: 22px;
+  width: 26px;
   height: auto;
   color: var(--brass);
   opacity: 1;
 }
 
 .am-mark--credit {
-  width: 10px;
+  width: 12px;
   height: auto;
   color: var(--brass);
   vertical-align: -1px;
@@ -803,10 +803,17 @@ html.fonts-ready .gate__spine {
   z-index: 2000;
   display: flex;
   flex-direction: column;
-  animation: viewerIn 0.25s var(--ease-soft);
 }
 
-@keyframes viewerIn { from { opacity: 0; } to { opacity: 1; } }
+/* Only the dim backdrop fades — the bar and page content (in
+   .viewer__shell) are opaque from the very first frame. Previously
+   the whole .viewer wrapper faded as one block, so for ~0.25s the
+   opaque bar/page content was itself semi-transparent too, letting
+   the app screen underneath show through faintly (a static
+   screenshot could catch it mid-fade and look like stray leftover
+   content). Fading only the overlay removes that possibility
+   entirely while keeping the same soft-open feel. */
+@keyframes viewerOverlayIn { from { opacity: 0; } to { opacity: 1; } }
 
 .viewer__overlay {
   position: absolute;
@@ -814,6 +821,7 @@ html.fonts-ready .gate__spine {
   background: rgba(9, 9, 12, 0.82);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
+  animation: viewerOverlayIn 0.25s var(--ease-soft);
 }
 
 .viewer__shell {
@@ -828,7 +836,7 @@ html.fonts-ready .gate__spine {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 16px;
+  padding: 4px 14px;
   background: var(--ink);
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
@@ -844,7 +852,7 @@ html.fonts-ready .gate__spine {
 .viewer__brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
   flex: 1 1 auto;
   overflow: hidden;
@@ -853,32 +861,26 @@ html.fonts-ready .gate__spine {
 .viewer__brand-text {
   display: flex;
   flex-direction: column;
-  gap: 1px;
   min-width: 0;
 }
 
 .viewer__credit {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   font-family: var(--sans);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--paper-faint);
 }
 
-.viewer__name {
-  font-family: var(--sans);
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--paper-dim);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
+/* The filename is dropped from the bar itself — it's already shown
+   inside the title card at the top of every PDF, so repeating it
+   here just ate a second line of height for no reason. Left in the
+   DOM (script.js still sets it) in case it's ever wanted back. */
+.viewer__name { display: none; }
 
 .viewer__actions { display: flex; gap: 8px; flex-shrink: 0; }
 
@@ -886,7 +888,7 @@ html.fonts-ready .gate__spine {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 6px 14px;
+  padding: 5px 14px;
   border-radius: 999px;
   font-family: var(--sans);
   font-size: 12.5px;
@@ -901,8 +903,8 @@ html.fonts-ready .gate__spine {
   background: none;
   color: var(--paper-faint);
   border: 1px solid var(--line-strong);
-  width: 28px;
-  padding: 6px;
+  width: 24px;
+  padding: 5px;
 }
 
 .viewer__btn--close:hover { border-color: rgba(176, 99, 73, 0.5); color: var(--chemistry); }
@@ -1141,9 +1143,8 @@ html.fonts-ready .gate__spine {
   .gate__field { min-width: 140px; }
   .gate__spine { display: none; }
 
-  .viewer__bar { padding: 6px 12px; gap: 8px; }
-  .am-mark--viewer { width: 18px; }
-  .viewer__name { max-width: 40%; }
+  .viewer__bar { padding: 4px 12px; gap: 8px; }
+  .am-mark--viewer { width: 22px; }
   .viewer__pages {
     padding: 16px 10px 110px;
     padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px));
@@ -1158,7 +1159,6 @@ html.fonts-ready .gate__spine {
   .gate__form { flex-direction: column; align-items: stretch; }
   .gate__btn { justify-content: center; padding: 12px 2px; }
 
-  .viewer__name { max-width: 34%; }
   .viewer__btn-text { display: none; }
 }
 
