@@ -1096,6 +1096,64 @@ html.fonts-ready .gate__spine {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   CONTACT LINE (WhatsApp + email) — shared by the gate and footer
+   ═══════════════════════════════════════════════════════════════ */
+.contact-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-family: var(--sans);
+  font-size: 11px;
+  color: var(--paper-faint);
+}
+
+.contact-line a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--paper-dim);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line-strong);
+  padding-bottom: 1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.contact-line a:hover { color: var(--brass); border-color: var(--brass-dim); }
+
+.contact-line__sep {
+  color: var(--paper-faint);
+  opacity: 0.45;
+}
+
+.contact-line svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+.gate__contact {
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.gate__contact-label {
+  display: block;
+  text-align: center;
+  font-size: 10.5px;
+  letter-spacing: 0.3px;
+  color: var(--paper-faint);
+  margin-bottom: 8px;
+}
+
+.foot__contact {
+  width: 100%;
+  order: 3;
+  padding-top: 14px;
+  margin-top: 4px;
+  border-top: 1px solid var(--line);
+  justify-content: flex-start;
+}
+
+/* ═══════════════════════════════════════════════════════════════
    ENTRANCE ANIMATIONS (content items)
    ═══════════════════════════════════════════════════════════════ */
 .fade-up { animation: itemUp 0.5s var(--ease-soft) both; }
