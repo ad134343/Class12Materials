@@ -1,0 +1,89 @@
+name: Compress PDFs
+
+# Runs automatically whenever a PDF is added/changed, and can also be
+# triggered manually from the Actions tab (Run workflow).
+on:
+  push:
+    paths:
+      - "**/*.pdf"
+  workflow_dispatch:
+    inputs:
+      dpi:
+        description: "Image DPI to downsample scanned pages to (lower = smaller files, less crisp)"
+        required: false
+        default: "150"
+      max_mb:
+        description: "Only compress files larger than this many MB"
+        required: false
+        default: "8"
+
+# Needed so the job is allowed to push the compressed files back to the repo.
+permissions:
+  contents: write
+
+jobs:
+  compress:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Ghostscript
+        run: sudo apt-get update -qq && sudo apt-get install -y ghostscript
+
+      - name: Compress oversized PDFs
+        env:
+          DPI: ${{ github.event.inputs.dpi || '150' }}
+          MAX_MB: ${{ github.event.inputs.max_mb || '8' }}
+        run: |
+          set -e
+          MAX_BYTES=$((MAX_MB * 1024 * 1024))
+          echo "Target: files over ${MAX_MB}MB get downsampled to ${DPI} DPI"
+
+          # -print0 / read -d '' so filenames with spaces, apostrophes,
+          # parentheses and & (there are plenty in this repo) survive intact.
+          find . -type f -iname "*.pdf" -not -path "./.git/*" -print0 |
+          while IFS= read -r -d '' f; do
+            size=$(stat -c%s "$f")
+            if [ "$size" -le "$MAX_BYTES" ]; then
+              echo "Skip (already under ${MAX_MB}MB): $f"
+              continue
+            fi
+
+            tmp="${f%.pdf}.__compressed.pdf"
+            gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 \
+               -dPDFSETTINGS=/ebook \
+               -dNOPAUSE -dQUIET -dBATCH \
+               -dColorImageResolution="$DPI" \
+               -dGrayImageResolution="$DPI" \
+               -dMonoImageResolution="$DPI" \
+               -sOutputFile="$tmp" "$f" || { echo "Ghostscript failed on: $f (leaving original)"; rm -f "$tmp"; continue; }
+
+            newsize=$(stat -c%s "$tmp")
+            # Only keep the compressed version if it's a genuine win (at
+            # least 10% smaller) — some already-optimized or text-only
+            # PDFs can come back the same size or larger from Ghostscript.
+            if [ "$newsize" -lt "$((size * 90 / 100))" ]; then
+              mv "$tmp" "$f"
+              echo "Compressed: $f  ($((size / 1024 / 1024))MB -> $((newsize / 1024 / 1024))MB)"
+            else
+              rm -f "$tmp"
+              echo "No real gain, kept original: $f"
+            fi
+          done
+
+      - name: Commit compressed PDFs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A -- "*.pdf"
+          # [skip ci] on the commit message stops this same push from
+          # re-triggering the workflow and looping on itself.
+          if ! git diff --cached --quiet; then
+            git commit -m "Auto-compress oversized PDFs [skip ci]"
+            git push
+          else
+            echo "Nothing to commit — no PDF ended up smaller."
+          fi
