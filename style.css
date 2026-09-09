@@ -978,6 +978,22 @@ html.fonts-ready .gate__spine {
   border-radius: 2px;
 }
 
+/* The instant cached-thumbnail stand-in shown the moment the viewer
+   opens (see script.js's viewerPlaceholder), before the real
+   high-res page has rendered. It had no sizing rule at all before —
+   it rendered at its tiny native thumbnail resolution instead of
+   filling the space, which is what left the huge dead black gap
+   above the real content. Sized to match .viewer__page so the
+   swap-out when the real page arrives is seamless. */
+.viewer__placeholder {
+  display: block;
+  width: min(100%, 900px);
+  height: auto;
+  flex-shrink: 0;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+  border-radius: 2px;
+}
+
 .viewer__status {
   display: flex;
   flex-direction: column;
