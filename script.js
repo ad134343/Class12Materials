@@ -117,6 +117,18 @@
   const gateError   = $("#gateError");
   const gateField   = $(".gate__field");
 
+  // ── Admin dashboard refs ─────────────────────────────────
+  const adminApp           = $("#adminApp");
+  const adminBackBtn       = $("#adminBackBtn");
+  const adminRefreshBtn    = $("#adminRefreshBtn");
+  const adminPresenceList  = $("#adminPresenceList");
+  const adminRosterList    = $("#adminRosterList");
+  const adminDetail        = $("#adminDetail");
+  const adminDetailOverlay = $("#adminDetailOverlay");
+  const adminDetailClose   = $("#adminDetailClose");
+  const adminDetailName    = $("#adminDetailName");
+  const adminDetailBody    = $("#adminDetailBody");
+
   // ── State ──────────────────────────────────────────────
   let curView     = "home";
   let curSubject  = null;
@@ -185,6 +197,23 @@
   // then paste the printed hash into config.js's accessList.hashes.
   window.__hashName = async (name) => {
     const hash = await hashName(name);
+    console.log(hash);
+    return hash;
+  };
+
+  // Admin secret hashing — same salted-hash model as hashName above,
+  // but NOT lowercased/space-collapsed, so case and spacing in your
+  // chosen phrase count toward its strength instead of being thrown
+  // away. Console helper: open dev tools on the live site and run
+  //   await __hashAdminSecret("your chosen phrase")
+  // then paste the printed value into config.js's admin.secretHash.
+  async function hashAdminSecret(secret) {
+    const salt = (SITE_CONFIG.admin && SITE_CONFIG.admin.salt) || "";
+    return sha256Hex(salt + secret.trim());
+  }
+
+  window.__hashAdminSecret = async (secret) => {
+    const hash = await hashAdminSecret(secret);
     console.log(hash);
     return hash;
   };
@@ -435,6 +464,11 @@
       }
     });
 
+    adminBackBtn.addEventListener("click", exitAdmin);
+    adminRefreshBtn.addEventListener("click", refreshAdmin);
+    adminDetailClose.addEventListener("click", closeAdminDetail);
+    adminDetailOverlay.addEventListener("click", closeAdminDetail);
+
     viewerClose.addEventListener("click", closeViewer);
     viewerOverlay.addEventListener("click", closeViewer);
     $("#viewerZoomIn").addEventListener("click", zoomIn);
@@ -476,6 +510,22 @@
     e.preventDefault();
     const name = nameInput.value.trim();
     if (!name) return;
+
+    // Admin entry: checked before anything else, and returns early
+    // so this never touches the Log sheet, the access list, or
+    // localStorage — the admin secret leaves no trace of itself in
+    // your own student-facing data. Compared as a salted hash, same
+    // model as the access list, so the real phrase never sits in
+    // config.js as plain text.
+    if (SITE_CONFIG.admin && SITE_CONFIG.admin.enabled && SITE_CONFIG.admin.secretHash) {
+      const candidateHash = await hashAdminSecret(name);
+      if (candidateHash === SITE_CONFIG.admin.secretHash) {
+        nameInput.value = "";
+        hideGateError();
+        enterAdmin();
+        return;
+      }
+    }
 
     // Tagged distinctly as "suspended" (not folded into "unauthorized")
     // so the Apps Script backend can tell this specific case apart and
@@ -1072,6 +1122,211 @@
     currentViewId = null;
     currentViewName = null;
     currentViewActiveMs = 0;
+  }
+
+  // ── Admin Dashboard ──────────────────────────────────────
+  // Everything here reads fresh from the sheet on every open — no
+  // client-side caching between visits, per your request. The only
+  // "live" piece is the online-now list, which re-polls on an
+  // interval while the dashboard is actually open.
+
+  let adminPresenceTimer = null;
+  let fileSubjectMap = null;
+
+  function adminEndpointUrl(action, params) {
+    const endpoint = SITE_CONFIG.logging && SITE_CONFIG.logging.endpoint;
+    const key = SITE_CONFIG.admin && SITE_CONFIG.admin.key;
+    const url = new URL(endpoint);
+    url.searchParams.set("action", action);
+    url.searchParams.set("key", key);
+    if (params) Object.keys(params).forEach((k) => url.searchParams.set(k, params[k]));
+    return url.toString();
+  }
+
+  async function adminFetch(action, params) {
+    try {
+      const res = await fetch(adminEndpointUrl(action, params));
+      const data = await res.json();
+      return (data && data.ok) ? data : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // Maps a file's display name (what's logged as `detail` on view
+  // events) back to which subject/folder it lives under, using the
+  // same SITE_CONFIG this page already has — no need for the backend
+  // to know anything about subjects.
+  function getFileSubjectMap() {
+    if (fileSubjectMap) return fileSubjectMap;
+    fileSubjectMap = {};
+    SITE_CONFIG.subjects.forEach((s) => {
+      s.subfolders.forEach((f) => {
+        f.files.forEach((file) => {
+          fileSubjectMap[file.name] = { subject: s.name, folder: f.name };
+        });
+      });
+    });
+    return fileSubjectMap;
+  }
+
+  function enterAdmin() {
+    gate.classList.add("hidden");
+    app.classList.add("hidden");
+    adminApp.classList.remove("hidden");
+    refreshAdmin();
+    stopAdminPolling();
+    adminPresenceTimer = setInterval(renderAdminPresence, 20000);
+  }
+
+  function exitAdmin() {
+    stopAdminPolling();
+    closeAdminDetail();
+    adminApp.classList.add("hidden");
+    gate.classList.remove("hidden");
+  }
+
+  function stopAdminPolling() {
+    if (adminPresenceTimer) {
+      clearInterval(adminPresenceTimer);
+      adminPresenceTimer = null;
+    }
+  }
+
+  function refreshAdmin() {
+    renderAdminPresence();
+    renderAdminRoster();
+  }
+
+  async function renderAdminPresence() {
+    const data = await adminFetch("presenceLive");
+    const online = (data && data.online) || [];
+    adminPresenceList.innerHTML = "";
+
+    if (!data) {
+      adminPresenceList.innerHTML = `<p class="admin__empty">Couldn't reach the sheet — check the admin key.</p>`;
+      return;
+    }
+    if (!online.length) {
+      adminPresenceList.innerHTML = `<p class="admin__empty">Nobody online right now</p>`;
+      return;
+    }
+
+    online.forEach((person) => {
+      const startedAt = new Date(person.sessionStart).getTime();
+      const mins = Math.max(0, Math.round((Date.now() - startedAt) / 60000));
+      const row = el("div", "admin__presence-row");
+      row.innerHTML = `
+        <span class="admin__presence-dot"></span>
+        <div class="admin__presence-info">
+          <span class="admin__presence-name">${person.name}</span>
+          <span class="admin__presence-meta">online ${mins} min · ${person.currentPage || "home"}</span>
+        </div>`;
+      row.addEventListener("click", () => openAdminDetail(person.name));
+      adminPresenceList.appendChild(row);
+    });
+  }
+
+  async function renderAdminRoster() {
+    adminRosterList.innerHTML = `<p class="admin__loading">Loading…</p>`;
+    const data = await adminFetch("adminSummary");
+    const people = (data && data.people) || [];
+    adminRosterList.innerHTML = "";
+
+    if (!data) {
+      adminRosterList.innerHTML = `<p class="admin__empty">Couldn't reach the sheet — check the admin key.</p>`;
+      return;
+    }
+    if (!people.length) {
+      adminRosterList.innerHTML = `<p class="admin__empty">No activity logged yet</p>`;
+      return;
+    }
+
+    people.forEach((p) => {
+      const row = el("div", "admin__roster-row");
+      row.tabIndex = 0;
+      const lastSeen = p.lastSeen ? new Date(p.lastSeen).toLocaleString() : "—";
+      const totalMins = Math.round((p.totalSessionSeconds || 0) / 60);
+      row.innerHTML = `
+        <div class="admin__roster-name">${p.name}</div>
+        <div class="admin__roster-stat">${totalMins}m total</div>
+        <div class="admin__roster-stat">${p.sessionCount} session${p.sessionCount === 1 ? "" : "s"}</div>
+        <div class="admin__roster-stat admin__roster-lastseen">Last seen ${lastSeen}</div>`;
+      row.addEventListener("click", () => openAdminDetail(p.name));
+      row.addEventListener("keydown", (e) => { if (e.key === "Enter") openAdminDetail(p.name); });
+      adminRosterList.appendChild(row);
+    });
+  }
+
+  async function openAdminDetail(name) {
+    adminDetail.classList.remove("hidden");
+    adminDetailName.textContent = name;
+    adminDetailBody.innerHTML = `<p class="admin__loading">Loading…</p>`;
+    const data = await adminFetch("personDetail", { name });
+    if (!data) {
+      adminDetailBody.innerHTML = `<p class="admin__empty">Couldn't reach the sheet — check the admin key.</p>`;
+      return;
+    }
+    renderAdminDetail(data.events || []);
+  }
+
+  function closeAdminDetail() {
+    adminDetail.classList.add("hidden");
+  }
+
+  function renderAdminDetail(events) {
+    const subjectMap = getFileSubjectMap();
+    const subjectSeconds = {};
+    const fileSeconds = {};
+    let totalViewSeconds = 0;
+    let totalSessionSeconds = 0;
+    let sessionCount = 0;
+    const recentRows = events.slice(0, 40);
+
+    events.forEach((ev) => {
+      if (ev.type === "view_end" && ev.duration) {
+        totalViewSeconds += ev.duration;
+        fileSeconds[ev.detail] = (fileSeconds[ev.detail] || 0) + ev.duration;
+        const mapped = subjectMap[ev.detail];
+        const subj = mapped ? mapped.subject : "Other";
+        subjectSeconds[subj] = (subjectSeconds[subj] || 0) + ev.duration;
+      }
+      if (ev.type === "session_end" && ev.duration) {
+        totalSessionSeconds += ev.duration;
+        sessionCount++;
+      }
+    });
+
+    const barRows = (obj, unit) =>
+      Object.keys(obj)
+        .sort((a, b) => obj[b] - obj[a])
+        .slice(0, 10)
+        .map((k) => `<div class="admin__bar-row"><span class="admin__bar-label">${k}</span><span class="admin__bar-value">${Math.round(obj[k] / 60)}${unit}</span></div>`)
+        .join("") || `<p class="admin__empty">No PDF views yet</p>`;
+
+    const timeline = recentRows.map((ev) => {
+      const t = ev.timestamp ? new Date(ev.timestamp).toLocaleString() : "";
+      const extra = ev.duration ? ` · ${Math.round(ev.duration)}s` : "";
+      return `<div class="admin__timeline-row">
+        <span class="admin__timeline-time">${t}</span>
+        <span class="admin__timeline-type">${ev.type}</span>
+        <span class="admin__timeline-detail">${ev.detail || ""}${extra}</span>
+      </div>`;
+    }).join("") || `<p class="admin__empty">No activity yet</p>`;
+
+    adminDetailBody.innerHTML = `
+      <div class="admin__detail-summary">
+        <div class="admin__detail-stat"><span class="admin__detail-num">${Math.round(totalSessionSeconds / 60)}m</span><span class="admin__detail-label">total on site</span></div>
+        <div class="admin__detail-stat"><span class="admin__detail-num">${Math.round(totalViewSeconds / 60)}m</span><span class="admin__detail-label">inside PDFs</span></div>
+        <div class="admin__detail-stat"><span class="admin__detail-num">${sessionCount}</span><span class="admin__detail-label">sessions</span></div>
+      </div>
+      <p class="admin__detail-heading">Time by subject</p>
+      <div class="admin__bars">${barRows(subjectSeconds, "m")}</div>
+      <p class="admin__detail-heading">Most-viewed files</p>
+      <div class="admin__bars">${barRows(fileSeconds, "m")}</div>
+      <p class="admin__detail-heading">Recent activity</p>
+      <div class="admin__timeline">${timeline}</div>
+    `;
   }
 
   // ── Utility ────────────────────────────────────────────

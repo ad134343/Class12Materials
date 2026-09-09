@@ -30,6 +30,30 @@ const SITE_CONFIG = {
     endpoint: "https://script.google.com/macros/s/AKfycbyDtxYLc_dwqKdermC8caK79OG9K4lkIsHA7_XNoFVQDxLX7dmKDp-tCJxOcLOwTJ_7/exec",
   },
 
+  // ── Admin Dashboard ───────────────────────────────────────────
+  //  Typing your secret phrase into the normal name box (instead of
+  //  a real name) opens the admin dashboard instead of the student
+  //  site. It is NOT on the access list, so it never shows up as a
+  //  "student" anywhere in your own logs.
+  //
+  //  secretHash is a salted SHA-256 hash of that phrase, same model
+  //  as accessList above — the real phrase never sits in this file.
+  //  To set it: open the live site, open the browser console, run
+  //    await __hashAdminSecret("your chosen phrase")
+  //  then paste the value it prints below.
+  //
+  //  "key" IS sent as-is on every admin request (it has to be, to
+  //  authenticate to the backend) so hashing it wouldn't add
+  //  anything — it's pre-filled below with a random value that
+  //  already matches google-apps-script.gs. Change it any time, in
+  //  both places together, if you want a different one.
+  admin: {
+    enabled: true,
+    salt: "c12-admin-r4k9",
+    secretHash: "66575fc2e3bd47844b7bb501539c9aa1293b85640c9cf094c2c70840b9c21630",
+    key: "bdc7865253",
+  },
+
   // ── Access List (Who Can Log In) ─────────────────────────────
   //  Only names on this list can get past the gate. Matching is
   //  case-insensitive and ignores extra spaces — "PRIYA", "priya",

@@ -124,6 +124,44 @@
         </div>
     </div>
 
+    <!-- ═══ ADMIN DASHBOARD ═══ -->
+    <div id="adminApp" class="admin hidden">
+        <nav class="admin__nav">
+            <div class="admin__nav-inner">
+                <span class="admin__nav-title">Admin Dashboard</span>
+                <div class="admin__nav-actions">
+                    <button id="adminRefreshBtn" class="admin__nav-btn" type="button">Refresh</button>
+                    <button id="adminBackBtn" class="admin__nav-btn admin__nav-btn--ghost" type="button">Exit</button>
+                </div>
+            </div>
+        </nav>
+
+        <div class="admin__shell">
+            <section class="admin__section">
+                <h2 class="admin__section-title">Online right now</h2>
+                <div id="adminPresenceList" class="admin__presence-list"></div>
+            </section>
+
+            <section class="admin__section">
+                <h2 class="admin__section-title">Everyone</h2>
+                <div id="adminRosterList" class="admin__roster-list"></div>
+            </section>
+        </div>
+
+        <div id="adminDetail" class="admin-detail hidden">
+            <div id="adminDetailOverlay" class="admin-detail__overlay"></div>
+            <div class="admin-detail__panel">
+                <div class="admin-detail__bar">
+                    <span id="adminDetailName" class="admin-detail__name">Name</span>
+                    <button id="adminDetailClose" class="admin-detail__close" aria-label="Close">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
+                <div id="adminDetailBody" class="admin-detail__body"></div>
+            </div>
+        </div>
+    </div>
+
     <script src="config.js?v=4"></script>
     <script src="script.js?v=4"></script>
 </body>
