@@ -35,10 +35,9 @@
   const content     = $("#content");
   const viewer      = $("#viewer");
   const viewerName  = $("#viewerName");
-  const viewerDl    = $("#viewerDl");
   const viewerClose = $("#viewerClose");
   const viewerOverlay = $("#viewerOverlay");
-  const viewerFrame = $("#viewerFrame");
+  const viewerPages = $("#viewerPages");
   const gateBtn     = $(".gate__btn");
   const gateError   = $("#gateError");
   const gateField   = $(".gate__field");
@@ -313,14 +312,20 @@
       clearSession();
       location.reload();
     });
-    viewerDl.addEventListener("click", () => {
-      logEvent("download", currentName, viewerName.textContent);
-    });
     viewerClose.addEventListener("click", closeViewer);
     viewerOverlay.addEventListener("click", closeViewer);
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") closeViewer();
+
+      // Block the obvious save/print shortcuts while a PDF is open.
+      // This deters casual attempts, not determined ones — anyone
+      // using DevTools directly can still get around it, same as any
+      // browser-rendered PDF viewer (Google Drive's included).
+      if (!viewer.classList.contains("hidden") && (e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "p")) {
+        e.preventDefault();
+      }
     });
+    viewerPages.addEventListener("contextmenu", (e) => e.preventDefault());
 
     // Subtle magnetic pull on the gate CTA — a single deliberate
     // hover moment, not applied anywhere else.
@@ -543,17 +548,7 @@
       viewBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> View`;
       viewBtn.addEventListener("click", (e) => { e.stopPropagation(); openViewer(file.path, file.name); });
 
-      const dlBtn = document.createElement("a");
-      dlBtn.className = "file-card__overlay-btn file-card__overlay-btn--dl";
-      dlBtn.href = encodePath(file.path);
-      dlBtn.download = file.name;
-      dlBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download`;
-      dlBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        logEvent("download", currentName, file.name);
-      });
-
-      overlay.append(viewBtn, dlBtn);
+      overlay.append(viewBtn);
       preview.appendChild(overlay);
 
       card.addEventListener("click", () => openViewer(file.path, file.name));
@@ -607,20 +602,78 @@
   }
 
   // ── PDF Viewer ─────────────────────────────────────────
+  // Renders every page to its own <canvas> via pdf.js, instead of
+  // pointing an <iframe> at the raw file. Two reasons:
+  //  1. No native browser/OS PDF handling involved at all — this is
+  //     what fixes the iOS "stuck on thumbnail" and Android
+  //     "just downloads instead of opening" behavior, since both of
+  //     those come from each platform's own PDF plugin, not from
+  //     this site. One consistent viewer now, same on every device.
+  //  2. There's no visible `src="yourfile.pdf"` sitting in the page's
+  //     HTML anymore for a "view source" to reveal instantly. It
+  //     doesn't stop a DevTools Network-tab download (nothing
+  //     browser-side can), but it closes the trivial route.
+  let viewerLoadToken = 0;
+
   function openViewer(path, name) {
     const encoded = encodePath(path);
     viewerName.textContent = name;
-    viewerDl.href = encoded;
-    viewerDl.download = name;
-    viewerFrame.src = encoded;
     viewer.classList.remove("hidden");
     document.body.style.overflow = "hidden";
     logEvent("view", currentName, name);
+
+    viewerPages.innerHTML = "";
+    const myToken = ++viewerLoadToken; // guards against a stale render finishing after the viewer's been closed/reopened
+    const status = el("div", "viewer__status", "Loading…");
+    viewerPages.appendChild(status);
+
+    if (!window.pdfjsLib) {
+      status.textContent = "Couldn't load the PDF viewer. Please refresh and try again.";
+      return;
+    }
+
+    pdfjsLib.getDocument(encoded).promise.then((pdf) => {
+      if (myToken !== viewerLoadToken) return;
+      status.remove();
+
+      const renderPage = (pageNum) => {
+        if (myToken !== viewerLoadToken) return Promise.resolve();
+        return pdf.getPage(pageNum).then((page) => {
+          if (myToken !== viewerLoadToken) return;
+          const containerWidth = Math.min(viewerPages.clientWidth - 32, 900);
+          const unscaledViewport = page.getViewport({ scale: 1 });
+          const scale = containerWidth / unscaledViewport.width;
+          const viewport = page.getViewport({ scale });
+
+          const canvas = document.createElement("canvas");
+          canvas.className = "viewer__page";
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          viewerPages.appendChild(canvas);
+
+          const ctx = canvas.getContext("2d");
+          return page.render({ canvasContext: ctx, viewport }).promise;
+        });
+      };
+
+      // Rendered sequentially (not all at once) so a long document
+      // doesn't stall the browser trying to render every page up front.
+      let chain = Promise.resolve();
+      for (let i = 1; i <= pdf.numPages; i++) {
+        chain = chain.then(() => renderPage(i));
+      }
+      return chain;
+    }).catch(() => {
+      if (myToken !== viewerLoadToken) return;
+      status.textContent = "Couldn't load this PDF. Please try again.";
+    });
   }
 
   function closeViewer() {
     viewer.classList.add("hidden");
-    viewerFrame.src = "";
+    viewerLoadToken++; // invalidate any render still in flight
+    viewerPages.innerHTML = "";
+    viewerPages.scrollTop = 0;
     document.body.style.overflow = "";
   }
 
