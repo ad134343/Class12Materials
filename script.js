@@ -282,7 +282,7 @@
     if (cachedIp !== null) return cachedIp;
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 2500);
+      const timeout = setTimeout(() => controller.abort(), 1500);
       const res = await fetch("https://api.ipify.org?format=json", { signal: controller.signal });
       clearTimeout(timeout);
       const data = await res.json();
@@ -308,7 +308,7 @@
     if (!endpoint || endpoint.indexOf("PASTE_YOUR") === 0) return [];
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 2500);
+      const timeout = setTimeout(() => controller.abort(), 1500);
       const res = await fetch(`${endpoint}?action=blockedDevices`, { signal: controller.signal });
       clearTimeout(timeout);
       const data = await res.json();
@@ -430,6 +430,17 @@
 
     nameForm.addEventListener("submit", onNameSubmit);
     nameInput.addEventListener("input", hideGateError);
+    // Safety net for mobile keyboards: some virtual keyboards' Enter/Go
+    // key doesn't reliably fire a native form submit inside in-app
+    // browsers. Preventing the default here and calling requestSubmit()
+    // ourselves makes Enter behave exactly like tapping Continue, on
+    // every browser, without ever double-submitting.
+    nameInput.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      if (nameForm.requestSubmit) nameForm.requestSubmit();
+      else onNameSubmit(e);
+    });
     homeBtn.addEventListener("click", () => nav("home"));
     logoutBtn.addEventListener("click", () => {
       endCurrentView();
@@ -511,48 +522,86 @@
     const name = nameInput.value.trim();
     if (!name) return;
 
-    // Admin entry: checked before anything else, and returns early
-    // so this never touches the Log sheet, the access list, or
-    // localStorage — the admin secret leaves no trace of itself in
-    // your own student-facing data. Compared as a salted hash, same
-    // model as the access list, so the real phrase never sits in
-    // config.js as plain text.
-    if (SITE_CONFIG.admin && SITE_CONFIG.admin.enabled && SITE_CONFIG.admin.secretHash) {
-      const candidateHash = await hashAdminSecret(name);
-      if (candidateHash === SITE_CONFIG.admin.secretHash) {
-        nameInput.value = "";
-        hideGateError();
-        enterAdmin();
+    // Instant feedback the moment Continue is tapped/clicked — before
+    // any of the network-bound checks below even start. Those checks
+    // (device/IP lookups) can take a second or two on a slow
+    // connection, and with no visual change on tap it looked like the
+    // press hadn't registered, so people tapped again (or gave up).
+    setGateBusy(true);
+    hideGateError();
+
+    try {
+      // Admin entry: checked before anything else, and returns early
+      // so this never touches the Log sheet, the access list, or
+      // localStorage — the admin secret leaves no trace of itself in
+      // your own student-facing data. Compared as a salted hash, same
+      // model as the access list, so the real phrase never sits in
+      // config.js as plain text.
+      if (SITE_CONFIG.admin && SITE_CONFIG.admin.enabled && SITE_CONFIG.admin.secretHash) {
+        const candidateHash = await hashAdminSecret(name);
+        if (candidateHash === SITE_CONFIG.admin.secretHash) {
+          nameInput.value = "";
+          hideGateError();
+          enterAdmin();
+          return;
+        }
+      }
+
+      // Tagged distinctly as "suspended" (not folded into "unauthorized")
+      // so the Apps Script backend can tell this specific case apart and
+      // auto-add the device fingerprint (parsed out of the page field
+      // below) to its own blocklist — see the backend's doPost. This
+      // needs the fresh Apps Script deployment to understand the tag;
+      // it's safe now since that's being redeployed anyway.
+      //
+      // All three network-bound lookups fire together instead of one
+      // after another — isSuspended() below used to trigger its own
+      // separate blocklist fetch AFTER this line finished, so on a
+      // slow connection the two waits stacked (up to ~5s total).
+      // Prefetching fetchBlockedDeviceIds() here means isSuspended()
+      // just reads the already-resolved, cached result.
+      const [deviceId, ip] = await Promise.all([
+        getDeviceId(),
+        getClientIp(),
+        fetchBlockedDeviceIds()
+      ]);
+      const trace = `${location.href} || device:${deviceId} || ip:${ip || "unknown"}`;
+
+      if (await isSuspended(name)) {
+        logEvent("login", name, "suspended", trace);
+        showGateError((SITE_CONFIG.suspended && SITE_CONFIG.suspended.message) || "You are not able to access this page.");
         return;
       }
+
+      if (!(await isAuthorized(name))) {
+        logEvent("login", name, "unauthorized", trace);
+        showGateError("You're not authorized to view this page. Please enter your actual name.");
+        return;
+      }
+
+      hideGateError();
+      saveSession(name);
+      logEvent("login", name, "authorized", trace);
+      gate.classList.add("fade-out");
+      setTimeout(() => { gate.classList.add("hidden"); showApp(name); }, 650);
+    } finally {
+      // Always release the busy state — on a rejected path the person
+      // needs the button back immediately to retry; on the success
+      // path it's harmless since the gate is already fading out.
+      setGateBusy(false);
     }
+  }
 
-    // Tagged distinctly as "suspended" (not folded into "unauthorized")
-    // so the Apps Script backend can tell this specific case apart and
-    // auto-add the device fingerprint (parsed out of the page field
-    // below) to its own blocklist — see the backend's doPost. This
-    // needs the fresh Apps Script deployment to understand the tag;
-    // it's safe now since that's being redeployed anyway.
-    const [deviceId, ip] = await Promise.all([getDeviceId(), getClientIp()]);
-    const trace = `${location.href} || device:${deviceId} || ip:${ip || "unknown"}`;
-
-    if (await isSuspended(name)) {
-      logEvent("login", name, "suspended", trace);
-      showGateError((SITE_CONFIG.suspended && SITE_CONFIG.suspended.message) || "You are not able to access this page.");
-      return;
-    }
-
-    if (!(await isAuthorized(name))) {
-      logEvent("login", name, "unauthorized", trace);
-      showGateError("You're not authorized to view this page. Please enter your actual name.");
-      return;
-    }
-
-    hideGateError();
-    saveSession(name);
-    logEvent("login", name, "authorized", trace);
-    gate.classList.add("fade-out");
-    setTimeout(() => { gate.classList.add("hidden"); showApp(name); }, 650);
+  // Instant visual proof that the tap/click registered, before any of
+  // the network checks above resolve: button dims, label swaps, and
+  // the arrow spins in place instead of nothing appearing to happen
+  // for a couple of seconds.
+  const gateBtnLabel = gateBtn.querySelector(".gate__btn-label");
+  const gateBtnLabelText = gateBtnLabel ? gateBtnLabel.textContent : "";
+  function setGateBusy(isBusy) {
+    gateBtn.disabled = isBusy;
+    gateBtn.classList.toggle("is-busy", isBusy);
+    if (gateBtnLabel) gateBtnLabel.textContent = isBusy ? "Please wait…" : gateBtnLabelText;
   }
 
   function showGateError(msg) {

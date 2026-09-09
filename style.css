@@ -115,14 +115,14 @@ html.fonts-ready .am-mark--gate { animation-play-state: running; }
 }
 
 .am-mark--viewer {
-  width: 38px;
+  width: 22px;
   height: auto;
   color: var(--brass);
   opacity: 1;
 }
 
 .am-mark--credit {
-  width: 12px;
+  width: 10px;
   height: auto;
   color: var(--brass);
   vertical-align: -1px;
@@ -355,6 +355,15 @@ html.fonts-ready .gate__spine {
 
 .gate__btn svg { transition: transform 0.3s var(--ease); }
 .gate__btn:hover svg { transform: translateX(4px); color: var(--brass); }
+
+/* Busy state — shown the instant Continue is tapped, before the
+   (up to ~1.5s) device/IP checks resolve, so the tap never looks
+   like it did nothing. */
+.gate__btn.is-busy { opacity: 0.55; cursor: default; pointer-events: none; }
+.gate__btn.is-busy .gate__btn-label::after { transform: scaleX(0); }
+.gate__btn.is-busy svg { animation: gateBtnSpin 0.7s linear infinite; }
+
+@keyframes gateBtnSpin { to { transform: rotate(360deg); } }
 
 .gate__error {
   margin-top: 16px;
@@ -819,10 +828,17 @@ html.fonts-ready .gate__spine {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 20px;
+  padding: 8px 16px;
   background: var(--ink);
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
+  /* Belt-and-braces: .viewer is already position:fixed/inset:0 and
+     this bar sits outside the scrollable .viewer__pages, so it can't
+     scroll away — sticky here just guarantees it stays pinned even
+     if that structure ever changes. */
+  position: sticky;
+  top: 0;
+  z-index: 5;
 }
 
 .viewer__brand {
@@ -837,16 +853,16 @@ html.fonts-ready .gate__spine {
 .viewer__brand-text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   min-width: 0;
 }
 
 .viewer__credit {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   font-family: var(--sans);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -870,7 +886,7 @@ html.fonts-ready .gate__spine {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 8px 16px;
+  padding: 6px 14px;
   border-radius: 999px;
   font-family: var(--sans);
   font-size: 12.5px;
@@ -885,8 +901,8 @@ html.fonts-ready .gate__spine {
   background: none;
   color: var(--paper-faint);
   border: 1px solid var(--line-strong);
-  width: 34px;
-  padding: 8px;
+  width: 28px;
+  padding: 6px;
 }
 
 .viewer__btn--close:hover { border-color: rgba(176, 99, 73, 0.5); color: var(--chemistry); }
@@ -1125,8 +1141,8 @@ html.fonts-ready .gate__spine {
   .gate__field { min-width: 140px; }
   .gate__spine { display: none; }
 
-  .viewer__bar { padding: 12px 14px; gap: 10px; }
-  .am-mark--viewer { width: 32px; }
+  .viewer__bar { padding: 6px 12px; gap: 8px; }
+  .am-mark--viewer { width: 18px; }
   .viewer__name { max-width: 40%; }
   .viewer__pages {
     padding: 16px 10px 110px;
