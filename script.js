@@ -945,7 +945,6 @@
   let currentPdf = null;
   let viewerZoom = 1;
   let pagesInner = null; // scaled independently of the scrolling outer container, so a live pinch can transform it without fighting scroll
-  let viewerPlaceholder = null; // instant cached-thumbnail stand-in, removed once the real page 1 renders
   const ZOOM_MIN = 0.5;
   const ZOOM_MAX = 3;
   const ZOOM_INCREMENT = 0.25;
@@ -988,19 +987,14 @@
 
     const myToken = ++viewerLoadToken; // guards against a stale render finishing after the viewer's been closed/reopened
 
-    // Instant placeholder: if this file's thumbnail already rendered
-    // in the folder grid, show that cached snapshot immediately —
-    // zero wait — while the real high-res pages load behind it. Purely
-    // a perceived-speed trick: nothing here is a network request.
-    let placeholder = null;
-    const cachedThumb = thumbnailImageCache.get(path);
-    if (cachedThumb) {
-      placeholder = el("img", "viewer__placeholder");
-      placeholder.src = cachedThumb;
-      pagesInner.appendChild(placeholder);
-      viewerPages.appendChild(pagesInner);
-    }
-    viewerPlaceholder = placeholder;
+    // The instant cached-thumbnail placeholder that used to render here
+    // is gone — it was showing up essentially all-black (a bad/undersized
+    // JPEG snapshot from the folder grid) for a moment before the real
+    // page swapped in, which is exactly the big dark block everyone kept
+    // reporting. Simpler and reliable beats "instant but sometimes
+    // broken": it's just the compact loading status below until the
+    // real page is ready — nothing that can ever render as a stray
+    // dark rectangle again.
 
     // Real progress bar instead of a plain "Loading…" label — a
     // determinate fill once the file size is known, falling back to
@@ -1008,14 +1002,11 @@
     // Content-Length. The point is just to keep showing the person
     // something is actively happening so they don't give up and leave.
     const status = el("div", "viewer__status");
-    const statusText = el("p", "viewer__status-text", placeholder ? "Loading full quality…" : "Loading document…");
+    const statusText = el("p", "viewer__status-text", "Loading document…");
     const track = el("div", "viewer__progress-track viewer__progress-track--indeterminate");
     const fill = el("div", "viewer__progress-fill");
     track.appendChild(fill);
     status.append(statusText, track);
-    if (placeholder) {
-      status.classList.add("viewer__status--over-placeholder");
-    }
     viewerPages.appendChild(status);
 
     if (!window.pdfjsLib) {
@@ -1082,14 +1073,6 @@
         canvas.style.width = `${displayWidth}px`;
         canvas.style.height = `${viewport.height / dpr}px`;
         pagesInner.appendChild(canvas);
-
-        // The real page 1 has arrived — swap out the instant cached
-        // placeholder now instead of leaving it stacked above the
-        // genuine pages.
-        if (pageNum === 1 && viewerPlaceholder) {
-          viewerPlaceholder.remove();
-          viewerPlaceholder = null;
-        }
 
         const ctx = canvas.getContext("2d");
         return page.render({ canvasContext: ctx, viewport }).promise;
@@ -1182,7 +1165,6 @@
     viewerLoadToken++; // invalidate any render still in flight
     currentPdf = null;
     pagesInner = null;
-    viewerPlaceholder = null;
     viewerPages.innerHTML = "";
     viewerPages.scrollTop = 0;
     document.body.style.overflow = "";
