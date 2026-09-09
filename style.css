@@ -93,15 +93,14 @@ button, input { font: inherit; color: inherit; }
 }
 
 .am-mark--gate {
-  position: absolute;
-  right: 28px;
-  bottom: 28px;
-  width: 26px;
+  display: block;
+  width: 54px;
   height: auto;
-  color: var(--brass-dim);
+  color: var(--brass);
+  margin-bottom: 18px;
   opacity: 0;
   animation: fadeUp 0.9s var(--ease) both;
-  animation-delay: 1.4s;
+  animation-delay: 0s;
   animation-play-state: paused;
 }
 
@@ -116,11 +115,11 @@ html.fonts-ready .am-mark--gate { animation-play-state: running; }
 }
 
 .am-mark--viewer {
-  width: 16px;
+  width: 28px;
   height: auto;
-  color: var(--paper-faint);
-  margin-right: 10px;
-  opacity: 0.7;
+  color: var(--brass);
+  margin-right: 12px;
+  opacity: 1;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1076,6 +1075,7 @@ html.fonts-ready .gate__spine {
   .file-card__overlay-btn { padding: 8px 14px; font-size: 12px; width: 108px; }
 
   .gate__content { padding: 0 7vw; }
+  .am-mark--gate { width: 42px; margin-bottom: 14px; }
   .gate__title { letter-spacing: -1px; margin-bottom: 20px; }
   .gate__eyebrow { font-size: 12px; }
   .gate__subtitle { font-size: 14px; margin-bottom: 24px; }
@@ -1084,6 +1084,7 @@ html.fonts-ready .gate__spine {
   .gate__spine { display: none; }
 
   .viewer__bar { padding: 12px 14px; gap: 10px; }
+  .am-mark--viewer { width: 22px; margin-right: 8px; }
   .viewer__name { max-width: 40%; font-size: 12px; }
   .viewer__pages {
     padding: 16px 10px 110px;
