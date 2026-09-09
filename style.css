@@ -866,25 +866,65 @@ html.fonts-ready .gate__spine {
 
 .viewer__btn--close:hover { border-color: rgba(176, 99, 73, 0.5); color: var(--chemistry); }
 
+.viewer__zoom {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 3px;
+}
+
+.viewer__zoom-btn {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  color: var(--paper-dim);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.viewer__zoom-btn:hover { background: var(--ink-raised-2); color: var(--brass); }
+
+.viewer__zoom-label {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--paper-faint);
+  min-width: 38px;
+  text-align: center;
+}
+
 .viewer__pages {
   flex: 1;
   width: 100%;
-  overflow-y: auto;
+  overflow: auto;
   background: #0c0c10;
   padding: 24px 16px 48px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 18px;
-  /* Discourages the casual "select all, copy" route without doing
-     anything to actually prevent screenshots or DevTools access. */
+  /* Allows scrolling in both directions (needed once a page is
+     zoomed wider than the screen) while disabling the native
+     pinch-to-zoom gesture — that gesture just stretches the already
+     -rendered canvas and is what caused the blurriness; the zoom
+     buttons trigger a real higher-resolution re-render instead. */
+  touch-action: pan-x pan-y;
+  -webkit-overflow-scrolling: touch;
   -webkit-user-select: none;
   user-select: none;
 }
 
 .viewer__page {
-  max-width: 100%;
   height: auto;
+  flex-shrink: 0;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
   border-radius: 2px;
 }

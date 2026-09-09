@@ -12,6 +12,23 @@
       "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
   }
 
+  // A folder's thumbnails and the full viewer used to each call
+  // pdfjsLib.getDocument() independently — meaning a 30–40MB scanned
+  // PDF got fully fetched and parsed once for its thumbnail, then
+  // AGAIN from scratch the moment someone clicked to actually view it.
+  // This cache keeps the one loading task per file for the whole
+  // session, so opening the viewer after its thumbnail has already
+  // rendered reuses the same in-flight/completed load instead of
+  // starting over. Session-scoped only — closing the tab clears it,
+  // same as browser memory generally.
+  const pdfLoadingTasks = new Map();
+  function getPdfLoadingTask(encodedPath) {
+    if (!pdfLoadingTasks.has(encodedPath)) {
+      pdfLoadingTasks.set(encodedPath, pdfjsLib.getDocument(encodedPath));
+    }
+    return pdfLoadingTasks.get(encodedPath);
+  }
+
   // ── Line icons (no emoji) ───────────────────────────────
   const ICONS = {
     maths: `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.2 20h15.6z"/><path d="M12 3v17"/><circle cx="12" cy="3" r="1" fill="currentColor" stroke="none"/></svg>`,
@@ -314,6 +331,8 @@
     });
     viewerClose.addEventListener("click", closeViewer);
     viewerOverlay.addEventListener("click", closeViewer);
+    $("#viewerZoomIn").addEventListener("click", zoomIn);
+    $("#viewerZoomOut").addEventListener("click", zoomOut);
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") closeViewer();
 
@@ -577,7 +596,7 @@
     }
 
     const encoded = encodePath(path);
-    const loading = pdfjsLib.getDocument(encoded);
+    const loading = getPdfLoadingTask(encoded);
 
     loading.promise.then((pdf) => {
       return pdf.getPage(1);
@@ -614,6 +633,9 @@
   //     doesn't stop a DevTools Network-tab download (nothing
   //     browser-side can), but it closes the trivial route.
   let viewerLoadToken = 0;
+  let currentPdf = null;
+  let viewerZoom = 1;
+  const ZOOM_STEPS = [0.75, 1, 1.25, 1.5, 2, 2.5, 3];
 
   function openViewer(path, name) {
     const encoded = encodePath(path);
@@ -623,6 +645,9 @@
     logEvent("view", currentName, name);
 
     viewerPages.innerHTML = "";
+    currentPdf = null;
+    viewerZoom = 1;
+    updateZoomLabel();
     const myToken = ++viewerLoadToken; // guards against a stale render finishing after the viewer's been closed/reopened
     const status = el("div", "viewer__status", "Loading…");
     viewerPages.appendChild(status);
@@ -632,46 +657,100 @@
       return;
     }
 
-    pdfjsLib.getDocument(encoded).promise.then((pdf) => {
+    // Reuses the same loading task the folder thumbnail already
+    // started (see getPdfLoadingTask) — for a large scanned PDF whose
+    // thumbnail has already rendered, this resolves instantly instead
+    // of re-fetching the whole file a second time.
+    const task = getPdfLoadingTask(encoded);
+    task.onProgress = (p) => {
       if (myToken !== viewerLoadToken) return;
-      status.remove();
-
-      const renderPage = (pageNum) => {
-        if (myToken !== viewerLoadToken) return Promise.resolve();
-        return pdf.getPage(pageNum).then((page) => {
-          if (myToken !== viewerLoadToken) return;
-          const containerWidth = Math.min(viewerPages.clientWidth - 32, 900);
-          const unscaledViewport = page.getViewport({ scale: 1 });
-          const scale = containerWidth / unscaledViewport.width;
-          const viewport = page.getViewport({ scale });
-
-          const canvas = document.createElement("canvas");
-          canvas.className = "viewer__page";
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-          viewerPages.appendChild(canvas);
-
-          const ctx = canvas.getContext("2d");
-          return page.render({ canvasContext: ctx, viewport }).promise;
-        });
-      };
-
-      // Rendered sequentially (not all at once) so a long document
-      // doesn't stall the browser trying to render every page up front.
-      let chain = Promise.resolve();
-      for (let i = 1; i <= pdf.numPages; i++) {
-        chain = chain.then(() => renderPage(i));
+      if (p.total) {
+        status.textContent = `Loading… ${Math.min(100, Math.round((p.loaded / p.total) * 100))}%`;
       }
-      return chain;
+    };
+
+    task.promise.then((pdf) => {
+      if (myToken !== viewerLoadToken) return;
+      currentPdf = pdf;
+      status.remove();
+      return renderAllPages(myToken);
     }).catch(() => {
       if (myToken !== viewerLoadToken) return;
       status.textContent = "Couldn't load this PDF. Please try again.";
     });
   }
 
+  function renderAllPages(token) {
+    viewerPages.querySelectorAll(".viewer__page").forEach((c) => c.remove());
+    const pdf = currentPdf;
+    if (!pdf) return Promise.resolve();
+
+    // Rendered at devicePixelRatio so the base view is sharp on
+    // retina/high-DPI phones — this alone fixes a lot of perceived
+    // "blurriness" independent of zoom. The zoom buttons below then
+    // ask pdf.js to redraw at a genuinely higher resolution rather
+    // than stretching this canvas, which is what pinch-zoom was doing
+    // before (and why it went pixelated).
+    const dpr = window.devicePixelRatio || 1;
+
+    const renderPage = (pageNum) => {
+      if (token !== viewerLoadToken) return Promise.resolve();
+      return pdf.getPage(pageNum).then((page) => {
+        if (token !== viewerLoadToken) return;
+        const displayWidth = Math.min(viewerPages.clientWidth - 32, 900) * viewerZoom;
+        const unscaledViewport = page.getViewport({ scale: 1 });
+        const renderScale = (displayWidth / unscaledViewport.width) * dpr;
+        const viewport = page.getViewport({ scale: renderScale });
+
+        const canvas = document.createElement("canvas");
+        canvas.className = "viewer__page";
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        canvas.style.width = `${displayWidth}px`;
+        canvas.style.height = `${viewport.height / dpr}px`;
+        viewerPages.appendChild(canvas);
+
+        const ctx = canvas.getContext("2d");
+        return page.render({ canvasContext: ctx, viewport }).promise;
+      });
+    };
+
+    // Rendered sequentially (not all at once) so a long document
+    // doesn't stall the browser trying to render every page up front.
+    let chain = Promise.resolve();
+    for (let i = 1; i <= pdf.numPages; i++) {
+      chain = chain.then(() => renderPage(i));
+    }
+    return chain;
+  }
+
+  function updateZoomLabel() {
+    const label = $("#viewerZoomLabel");
+    if (label) label.textContent = `${Math.round(viewerZoom * 100)}%`;
+  }
+
+  function setZoom(next) {
+    if (!currentPdf || next === viewerZoom) return;
+    viewerZoom = next;
+    updateZoomLabel();
+    const myToken = ++viewerLoadToken; // supersedes any render still in flight from a prior zoom click
+    renderAllPages(myToken);
+  }
+
+  function zoomIn() {
+    const idx = ZOOM_STEPS.indexOf(viewerZoom);
+    setZoom(ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, (idx === -1 ? 1 : idx) + 1)]);
+  }
+
+  function zoomOut() {
+    const idx = ZOOM_STEPS.indexOf(viewerZoom);
+    setZoom(ZOOM_STEPS[Math.max(0, (idx === -1 ? 1 : idx) - 1)]);
+  }
+
   function closeViewer() {
     viewer.classList.add("hidden");
     viewerLoadToken++; // invalidate any render still in flight
+    currentPdf = null;
     viewerPages.innerHTML = "";
     viewerPages.scrollTop = 0;
     document.body.style.overflow = "";
