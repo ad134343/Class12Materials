@@ -128,6 +128,11 @@
   const adminDetailClose   = $("#adminDetailClose");
   const adminDetailName    = $("#adminDetailName");
   const adminDetailBody    = $("#adminDetailBody");
+  const adminApprovalList  = $("#adminApprovalList");
+  const adminAddNameInput  = $("#adminAddNameInput");
+  const adminAddNameBtn    = $("#adminAddNameBtn");
+  const adminRosterSearch  = $("#adminRosterSearch");
+  const adminMergeBtn      = $("#adminMergeBtn");
 
   // ── State ──────────────────────────────────────────────
   let curView     = "home";
@@ -188,7 +193,35 @@
     if (!list || !list.enabled) return true;
     if (!window.crypto || !window.crypto.subtle) return true; // insecure context (e.g. plain http) — fail open rather than lock everyone out
     const hash = await hashName(name);
-    return list.hashes.includes(hash);
+    if (list.hashes.includes(hash)) return true;
+    // Live-approved names — added from the admin dashboard's approval
+    // queue or "Add name" box, no redeploy needed. Checked in addition
+    // to the static list above, never instead of it.
+    const liveHashes = await fetchLiveAccessHashes();
+    return liveHashes.includes(hash);
+  }
+
+  // Mirrors fetchBlockedDeviceIds below: pulled from the Apps Script
+  // backend's "AccessList" sheet, which the admin dashboard writes to
+  // directly (approveName). Fails open (empty list) on any network
+  // error — same philosophy as the rest of this file, a hiccup here
+  // should never lock out someone who's actually approved.
+  let cachedLiveAccess = null;
+  async function fetchLiveAccessHashes() {
+    if (cachedLiveAccess) return cachedLiveAccess;
+    const endpoint = SITE_CONFIG.logging && SITE_CONFIG.logging.endpoint;
+    if (!endpoint || endpoint.indexOf("PASTE_YOUR") === 0) return [];
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 1500);
+      const res = await fetch(`${endpoint}?action=accessList`, { signal: controller.signal });
+      clearTimeout(timeout);
+      const data = await res.json();
+      cachedLiveAccess = (data && data.accessHashes) || [];
+    } catch {
+      cachedLiveAccess = [];
+    }
+    return cachedLiveAccess;
   }
 
   // Console helper for adding a new student later without re-editing
@@ -342,12 +375,61 @@
     const remoteBlocked = await fetchBlockedDeviceIds();
     if (remoteBlocked.includes(deviceId)) return true;
 
+    // Live-suspended names — added from the admin dashboard's Suspend
+    // button, which also cascades to every linked alias and device.
+    // Checked in addition to the static config.js list above.
+    if (name) {
+      const remoteSuspended = await fetchSuspendedHashes();
+      const hash = await hashName(name);
+      if (remoteSuspended.includes(hash)) return true;
+    }
+
     if (Array.isArray(s.ips) && s.ips.length) {
       const ip = await getClientIp();
       if (ip && s.ips.includes(ip)) return true;
     }
 
     return false;
+  }
+
+  // Mirrors fetchLiveAccessHashes above, for the Apps Script backend's
+  // "SuspendedNames" sheet.
+  let cachedLiveSuspended = null;
+  async function fetchSuspendedHashes() {
+    if (cachedLiveSuspended) return cachedLiveSuspended;
+    const endpoint = SITE_CONFIG.logging && SITE_CONFIG.logging.endpoint;
+    if (!endpoint || endpoint.indexOf("PASTE_YOUR") === 0) return [];
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 1500);
+      const res = await fetch(`${endpoint}?action=suspendedNames`, { signal: controller.signal });
+      clearTimeout(timeout);
+      const data = await res.json();
+      cachedLiveSuspended = (data && data.suspendedHashes) || [];
+    } catch {
+      cachedLiveSuspended = [];
+    }
+    return cachedLiveSuspended;
+  }
+
+  // ── Concurrent-session lock ───────────────────────────────
+  // True if this name (or any alias linked to it from the admin
+  // dashboard's merge tool) is already active in another session
+  // right now. Fails open (false) on any network error — a hiccup
+  // here should never lock out a legitimate solo login.
+  async function isNameActive(name) {
+    const endpoint = SITE_CONFIG.logging && SITE_CONFIG.logging.endpoint;
+    if (!endpoint || endpoint.indexOf("PASTE_YOUR") === 0) return false;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 1500);
+      const res = await fetch(`${endpoint}?action=nameActive&name=${encodeURIComponent(name)}`, { signal: controller.signal });
+      clearTimeout(timeout);
+      const data = await res.json();
+      return !!(data && data.active);
+    } catch {
+      return false;
+    }
   }
 
   // ── Font-load gate ───────────────────────────────────────
@@ -491,6 +573,10 @@
 
     adminBackBtn.addEventListener("click", exitAdmin);
     adminRefreshBtn.addEventListener("click", refreshAdmin);
+    adminAddNameBtn.addEventListener("click", onAdminAddName);
+    adminAddNameInput.addEventListener("keydown", (e) => { if (e.key === "Enter") onAdminAddName(); });
+    adminRosterSearch.addEventListener("input", () => renderAdminRoster(true));
+    adminMergeBtn.addEventListener("click", onMergeSelected);
     adminDetailClose.addEventListener("click", closeAdminDetail);
     adminDetailOverlay.addEventListener("click", closeAdminDetail);
 
@@ -594,6 +680,17 @@
       if (!(await isAuthorized(name))) {
         logEvent("login", name, "unauthorized", trace);
         showGateError("You're not authorized to view this page. Please enter your actual name.");
+        return;
+      }
+
+      // One active session per identity at a time — checked after
+      // suspended/authorized so a blocked name never reaches this far.
+      // A reload or reopened tab by the same person can momentarily
+      // trip this until their old session goes stale (~90s) — a known
+      // trade-off for now.
+      if (await isNameActive(name)) {
+        logEvent("login", name, "concurrent_blocked", trace);
+        showGateError("This name is already logged in on another device right now. Please wait a minute and try again.");
         return;
       }
 
@@ -1346,8 +1443,78 @@
     }
   }
 
+  let lastRosterPeople = [];
+  let selectedForMerge = new Set();
+
   function refreshAdmin() {
     renderAdminPresence();
+    renderApprovalQueue();
+    renderAdminRoster();
+  }
+
+  async function renderApprovalQueue() {
+    const data = await adminFetch("unauthorizedQueue");
+    const queue = (data && data.queue) || [];
+    adminApprovalList.innerHTML = "";
+
+    if (!data) {
+      adminApprovalList.innerHTML = `<p class="admin__empty">Couldn't reach the sheet — check the admin key.</p>`;
+      return;
+    }
+    if (!queue.length) {
+      adminApprovalList.innerHTML = `<p class="admin__empty">No pending attempts</p>`;
+      return;
+    }
+
+    queue.forEach((q) => {
+      const when = q.lastAttempt ? new Date(q.lastAttempt).toLocaleString() : "";
+      const row = el("div", "admin__presence-row");
+      row.innerHTML = `
+        <div class="admin__presence-info">
+          <span class="admin__presence-name">${q.name}</span>
+          <span class="admin__presence-meta">${q.count} attempt${q.count === 1 ? "" : "s"} · last ${when}</span>
+        </div>
+        <div class="admin__presence-actions">
+          <button type="button" class="admin__presence-btn" data-action="approve">Approve</button>
+        </div>`;
+      row.querySelector('[data-action="approve"]').addEventListener("click", async () => {
+        await adminFetch("approveName", { name: q.name });
+        renderApprovalQueue();
+      });
+      adminApprovalList.appendChild(row);
+    });
+  }
+
+  async function onAdminAddName() {
+    const name = adminAddNameInput.value.trim();
+    if (!name) return;
+    await adminFetch("approveName", { name });
+    adminAddNameInput.value = "";
+    renderApprovalQueue();
+  }
+
+  function updateMergeBtn() {
+    const n = selectedForMerge.size;
+    adminMergeBtn.textContent = `Merge selected (${n})`;
+    adminMergeBtn.disabled = n !== 2;
+  }
+
+  async function onMergeSelected() {
+    if (selectedForMerge.size !== 2) return;
+    const [a, b] = Array.from(selectedForMerge);
+    const primary = prompt(`Merging "${a}" and "${b}" as one person.\nWhich name should show on the roster? (type it exactly, or leave as-is)`, a);
+    if (!primary) return;
+    const alias = primary === a ? b : a;
+    await adminFetch("mergeIdentities", { primary, alias });
+    selectedForMerge.clear();
+    updateMergeBtn();
+    renderAdminRoster();
+  }
+
+  async function onToggleSuspend(name, currentlySuspended) {
+    const verb = currentlySuspended ? "unsuspend" : "suspend";
+    if (!confirm(`${currentlySuspended ? "Unsuspend" : "Suspend"} "${name}"?${currentlySuspended ? "" : " This also blocks every device and name they've ever used, and signs them out right now if online."}`)) return;
+    await adminFetch(currentlySuspended ? "unsuspendIdentity" : "suspendIdentity", { name });
     renderAdminRoster();
   }
 
@@ -1403,18 +1570,33 @@
     await adminFetch("forceLogout", { sessionId });
   }
 
-  async function renderAdminRoster() {
-    adminRosterList.innerHTML = `<p class="admin__loading">Loading…</p>`;
-    const data = await adminFetch("adminSummary");
-    const people = (data && data.people) || [];
+  async function renderAdminRoster(skipFetch) {
+    if (!skipFetch) {
+      adminRosterList.innerHTML = `<p class="admin__loading">Loading…</p>`;
+      const data = await adminFetch("adminSummary");
+      if (!data) {
+        adminRosterList.innerHTML = `<p class="admin__empty">Couldn't reach the sheet — check the admin key.</p>`;
+        return;
+      }
+      lastRosterPeople = data.people || [];
+    }
+
+    const query = adminRosterSearch.value.trim().toLowerCase();
+    const people = query
+      ? lastRosterPeople.filter((p) => {
+          const haystack = [p.name, ...(p.aliases || [])].join(" ").toLowerCase();
+          return haystack.includes(query);
+        })
+      : lastRosterPeople;
+
     adminRosterList.innerHTML = "";
 
-    if (!data) {
-      adminRosterList.innerHTML = `<p class="admin__empty">Couldn't reach the sheet — check the admin key.</p>`;
+    if (!lastRosterPeople.length) {
+      adminRosterList.innerHTML = `<p class="admin__empty">No activity logged yet</p>`;
       return;
     }
     if (!people.length) {
-      adminRosterList.innerHTML = `<p class="admin__empty">No activity logged yet</p>`;
+      adminRosterList.innerHTML = `<p class="admin__empty">No one matches "${query}"</p>`;
       return;
     }
 
@@ -1423,13 +1605,29 @@
       row.tabIndex = 0;
       const lastSeen = p.lastSeen ? new Date(p.lastSeen).toLocaleString() : "—";
       const totalMins = Math.round((p.totalSessionSeconds || 0) / 60);
+      const akaText = p.aliases && p.aliases.length ? ` <span class="admin__roster-aka">aka ${p.aliases.join(", ")}</span>` : "";
       row.innerHTML = `
-        <div class="admin__roster-name">${p.name}</div>
+        <input type="checkbox" class="admin__roster-checkbox" ${selectedForMerge.has(p.name) ? "checked" : ""}>
+        <div class="admin__roster-name">${p.name}${akaText}${p.suspended ? ' <span class="admin__roster-badge">suspended</span>' : ""}</div>
         <div class="admin__roster-stat">${totalMins}m total</div>
         <div class="admin__roster-stat">${p.sessionCount} session${p.sessionCount === 1 ? "" : "s"}</div>
-        <div class="admin__roster-stat admin__roster-lastseen">Last seen ${lastSeen}</div>`;
+        <div class="admin__roster-stat admin__roster-lastseen">Last seen ${lastSeen}</div>
+        <button type="button" class="admin__presence-btn admin__presence-btn--danger" data-action="suspend">${p.suspended ? "Unsuspend" : "Suspend"}</button>`;
+
       row.addEventListener("click", () => openAdminDetail(p.name));
       row.addEventListener("keydown", (e) => { if (e.key === "Enter") openAdminDetail(p.name); });
+
+      row.querySelector(".admin__roster-checkbox").addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (e.target.checked) selectedForMerge.add(p.name);
+        else selectedForMerge.delete(p.name);
+        updateMergeBtn();
+      });
+      row.querySelector('[data-action="suspend"]').addEventListener("click", (e) => {
+        e.stopPropagation();
+        onToggleSuspend(p.name, !!p.suspended);
+      });
+
       adminRosterList.appendChild(row);
     });
   }
@@ -1443,33 +1641,37 @@
       adminDetailBody.innerHTML = `<p class="admin__empty">Couldn't reach the sheet — check the admin key.</p>`;
       return;
     }
-    renderAdminDetail(data.events || []);
+    renderAdminDetail(data.events || [], data.totals || {});
   }
 
   function closeAdminDetail() {
     adminDetail.classList.add("hidden");
   }
 
-  function renderAdminDetail(events) {
+  function renderAdminDetail(events, totals) {
     const subjectMap = getFileSubjectMap();
     const subjectSeconds = {};
     const fileSeconds = {};
-    let totalViewSeconds = 0;
-    let totalSessionSeconds = 0;
-    let sessionCount = 0;
     const recentRows = events.slice(0, 40);
+
+    // Bars below still need to be built from view_end events (they
+    // break time down per-file/subject, which the backend doesn't
+    // pre-aggregate). The top summary numbers, though, come straight
+    // from `totals` — computed backend-side the same way the roster
+    // computes them, including an estimate for a session/view that's
+    // still in progress right now. Recomputing them here from only
+    // "_end" events (the old approach) is exactly why this panel used
+    // to show 0m/0/0 for someone currently online.
+    const totalViewSeconds = totals.totalViewSeconds || 0;
+    const totalSessionSeconds = totals.totalSessionSeconds || 0;
+    const sessionCount = totals.sessionCount || 0;
 
     events.forEach((ev) => {
       if (ev.type === "view_end" && ev.duration) {
-        totalViewSeconds += ev.duration;
         fileSeconds[ev.detail] = (fileSeconds[ev.detail] || 0) + ev.duration;
         const mapped = subjectMap[ev.detail];
         const subj = mapped ? mapped.subject : "Other";
         subjectSeconds[subj] = (subjectSeconds[subj] || 0) + ev.duration;
-      }
-      if (ev.type === "session_end" && ev.duration) {
-        totalSessionSeconds += ev.duration;
-        sessionCount++;
       }
     });
 

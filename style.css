@@ -1527,12 +1527,33 @@ html.fonts-ready .gate__spine {
 
 .admin__presence-btn--danger:hover { border-color: rgba(176, 99, 73, 0.6); color: var(--chemistry); }
 
+/* Toolbar row above Pending approval / Everyone lists */
+.admin__toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.admin__toolbar-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--paper);
+  background: var(--ink-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 9px 12px;
+}
+
+.admin__toolbar-input:focus { outline: none; border-color: var(--brass-dim); }
+
 /* Roster */
 .admin__roster-list { display: flex; flex-direction: column; gap: 6px; }
 
 .admin__roster-row {
   display: grid;
-  grid-template-columns: 1.4fr 0.8fr 0.8fr 1.4fr;
+  grid-template-columns: auto 1.3fr 0.7fr 0.7fr 1.2fr auto;
   align-items: center;
   gap: 10px;
   padding: 13px 14px;
@@ -1540,6 +1561,27 @@ html.fonts-ready .gate__spine {
   border-radius: var(--r-md);
   cursor: pointer;
   transition: border-color 0.2s var(--ease-soft), background 0.2s var(--ease-soft), transform 0.25s var(--ease-spring), box-shadow 0.25s var(--ease-soft);
+}
+
+.admin__roster-checkbox { width: 16px; height: 16px; accent-color: var(--brass); cursor: pointer; }
+
+.admin__roster-aka {
+  font-weight: 400;
+  font-size: 11.5px;
+  color: var(--paper-faint);
+}
+
+.admin__roster-badge {
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--chemistry);
+  border: 1px solid rgba(176, 99, 73, 0.5);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-left: 4px;
 }
 
 .admin__roster-row:hover, .admin__roster-row:focus-visible {

@@ -185,7 +185,20 @@
             </section>
 
             <section class="admin__section">
+                <h2 class="admin__section-title">Pending approval</h2>
+                <div class="admin__toolbar">
+                    <input type="text" id="adminAddNameInput" class="admin__toolbar-input" placeholder="Add a name directly…">
+                    <button type="button" id="adminAddNameBtn" class="admin__nav-btn">Add</button>
+                </div>
+                <div id="adminApprovalList" class="admin__presence-list"></div>
+            </section>
+
+            <section class="admin__section">
                 <h2 class="admin__section-title">Everyone</h2>
+                <div class="admin__toolbar">
+                    <input type="text" id="adminRosterSearch" class="admin__toolbar-input" placeholder="Search by name…">
+                    <button type="button" id="adminMergeBtn" class="admin__nav-btn admin__nav-btn--ghost" disabled>Merge selected (0)</button>
+                </div>
                 <div id="adminRosterList" class="admin__roster-list"></div>
             </section>
         </div>
