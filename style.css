@@ -1380,7 +1380,7 @@ html.fonts-ready .gate__spine {
   flex-shrink: 0;
 }
 
-.admin__presence-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.admin__presence-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
 
 .admin__presence-name {
   font-family: var(--sans);
@@ -1394,6 +1394,29 @@ html.fonts-ready .gate__spine {
   font-size: 12px;
   color: var(--paper-faint);
 }
+
+.admin__presence-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.admin__presence-btn {
+  font-family: var(--sans);
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--line-strong);
+  background: var(--ink-raised-2);
+  color: var(--paper-dim);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.admin__presence-btn:hover { border-color: var(--brass-dim); color: var(--brass); }
+
+.admin__presence-btn--danger:hover { border-color: rgba(176, 99, 73, 0.6); color: var(--chemistry); }
 
 /* Roster */
 .admin__roster-list { display: flex; flex-direction: column; gap: 6px; }
@@ -1439,6 +1462,61 @@ html.fonts-ready .gate__spine {
   display: flex;
   justify-content: flex-end;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   ADMIN NOTICE — popup message / forced-logout notice, shown to
+   the STUDENT's own browser (not the admin dashboard).
+   ═══════════════════════════════════════════════════════════ */
+.admin-notice {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.admin-notice__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(9, 9, 12, 0.72);
+  backdrop-filter: blur(4px);
+}
+
+.admin-notice__panel {
+  position: relative;
+  width: min(360px, 100%);
+  background: var(--ink-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  padding: 24px 22px 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  text-align: center;
+}
+
+.admin-notice__text {
+  font-family: var(--sans);
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--paper);
+  margin: 0 0 18px;
+  white-space: pre-wrap;
+}
+
+.admin-notice__btn {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 9px 22px;
+  border-radius: 8px;
+  border: 1px solid var(--brass-dim);
+  background: var(--brass);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.admin-notice__btn:hover { opacity: 0.9; }
 
 .admin-detail__overlay {
   position: absolute;

@@ -419,6 +419,21 @@
     sessionStorage.removeItem("c12_name");
   }
 
+  // Shared by the manual "sign out" button and a forced admin logout
+  // (see checkCommands below) — same clean-up either way: end any
+  // open PDF view, log the session as ended, stop the heartbeat, wipe
+  // the saved name, then reload back to the gate.
+  function performLogout(reason) {
+    endCurrentView();
+    if (sessionId) {
+      const seconds = sessionStart ? Math.round((Date.now() - sessionStart) / 1000) : "";
+      logEventBeacon("session_end", currentName, reason || "logout", undefined, { duration: seconds });
+    }
+    stopHeartbeat();
+    clearSession();
+    location.reload();
+  }
+
   // ── Init ───────────────────────────────────────────────
   async function init() {
     const saved = readSession();
@@ -450,16 +465,7 @@
       else onNameSubmit(e);
     });
     homeBtn.addEventListener("click", () => nav("home"));
-    logoutBtn.addEventListener("click", () => {
-      endCurrentView();
-      if (sessionId) {
-        const seconds = sessionStart ? Math.round((Date.now() - sessionStart) / 1000) : "";
-        logEventBeacon("session_end", currentName, "logout", undefined, { duration: seconds });
-      }
-      stopHeartbeat();
-      clearSession();
-      location.reload();
-    });
+    logoutBtn.addEventListener("click", () => performLogout("logout"));
     document.addEventListener("visibilitychange", () => {
       if (!currentViewId) return;
       if (document.hidden) {
@@ -660,6 +666,73 @@
       ? `viewing: ${currentViewName}`
       : (curFolder ? curFolder.name : curSubject ? curSubject.name : "home");
     logEvent("heartbeat", currentName, where);
+    checkCommands();
+  }
+
+  // Heartbeats go out via a no-cors POST (see logEvent above), which
+  // means the response body is opaque and unreadable — so an admin
+  // message or forced logout can't ride along on that request. This
+  // is a separate, plain GET instead (readable, same pattern as
+  // adminFetch below) asking "anything waiting for my sessionId?".
+  // Not gated behind admin.enabled — every student's browser needs to
+  // be able to poll this, admin or not.
+  async function checkCommands() {
+    const endpoint = SITE_CONFIG.logging && SITE_CONFIG.logging.endpoint;
+    if (!endpoint || endpoint.indexOf("PASTE_YOUR") === 0 || !sessionId) return;
+    try {
+      const url = new URL(endpoint);
+      url.searchParams.set("action", "checkCommands");
+      url.searchParams.set("sessionId", sessionId);
+      const res = await fetch(url.toString());
+      const data = await res.json();
+      if (!data || !data.ok) return;
+      if (data.forceLogout) {
+        showAdminNotice(
+          "You've been signed out by the admin.",
+          () => performLogout("admin_logout")
+        );
+        return;
+      }
+      if (data.message) {
+        showAdminNotice(data.message);
+      }
+    } catch {
+      // Silent — same fire-and-forget spirit as the rest of logging.
+      // A missed poll just means the message/logout arrives on the
+      // next heartbeat instead.
+    }
+  }
+
+  // Minimal popup for an admin-sent message (or the "you've been
+  // logged out" notice). Built on demand rather than living in
+  // index.html permanently, since it's rare enough not to need its
+  // own static markup cluttering the page.
+  function showAdminNotice(text, onClose) {
+    const existing = $("#adminNotice");
+    if (existing) existing.remove();
+
+    const wrap = el("div", "admin-notice");
+    wrap.id = "adminNotice";
+    wrap.innerHTML = `
+      <div class="admin-notice__overlay"></div>
+      <div class="admin-notice__panel">
+        <p class="admin-notice__text"></p>
+        <button type="button" class="admin-notice__btn">OK</button>
+      </div>`;
+    wrap.querySelector(".admin-notice__text").textContent = text;
+    document.body.appendChild(wrap);
+
+    const dismiss = () => {
+      wrap.remove();
+      if (onClose) onClose();
+    };
+    wrap.querySelector(".admin-notice__btn").addEventListener("click", dismiss);
+    // Deliberately no overlay-click-to-dismiss when it's a forced
+    // logout (onClose set) — that one should require an explicit tap
+    // to acknowledge, not vanish by an accidental tap outside it.
+    if (!onClose) {
+      wrap.querySelector(".admin-notice__overlay").addEventListener("click", dismiss);
+    }
   }
 
   // Generic activity logger — fires a silent background POST to the
@@ -1301,10 +1374,33 @@
         <div class="admin__presence-info">
           <span class="admin__presence-name">${person.name}</span>
           <span class="admin__presence-meta">online ${mins} min · ${person.currentPage || "home"}</span>
+        </div>
+        <div class="admin__presence-actions">
+          <button type="button" class="admin__presence-btn" data-action="message">Message</button>
+          <button type="button" class="admin__presence-btn admin__presence-btn--danger" data-action="logout">Log out</button>
         </div>`;
       row.addEventListener("click", () => openAdminDetail(person.name));
+      row.querySelector('[data-action="message"]').addEventListener("click", (e) => {
+        e.stopPropagation();
+        sendAdminMessage(person.sessionId, person.name);
+      });
+      row.querySelector('[data-action="logout"]').addEventListener("click", (e) => {
+        e.stopPropagation();
+        forceLogoutUser(person.sessionId, person.name);
+      });
       adminPresenceList.appendChild(row);
     });
+  }
+
+  async function sendAdminMessage(sessionId, name) {
+    const message = prompt(`Message to send ${name} (pops up on their screen within ~45s):`);
+    if (!message) return;
+    await adminFetch("sendMessage", { sessionId, message });
+  }
+
+  async function forceLogoutUser(sessionId, name) {
+    if (!confirm(`Sign ${name} out now? They'll see a notice and be returned to the login screen.`)) return;
+    await adminFetch("forceLogout", { sessionId });
   }
 
   async function renderAdminRoster() {
