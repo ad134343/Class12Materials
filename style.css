@@ -1,8 +1,11 @@
 /* ═══════════════════════════════════════════════════════════════
    CLASS 12 — STUDY INDEX
-   A quiet, editorial study archive. Ink ground, warm paper type,
-   Fraunces for voice, Archivo for structure. One deliberate motion
-   moment on entry; everything else answers a hand, not a timer.
+   Apple-style pass: Liquid-Glass materials on the floating chrome
+   (nav, toolbars, sheets) only — never on content, per HIG. Ink
+   ground, warm paper type and the brass accent stay as this site's
+   own identity; what changes is structure, motion, and material:
+   continuous corner radii, spring easing, real touch targets, and
+   glass surfaces that sit above content rather than replacing it.
    ═══════════════════════════════════════════════════════════════ */
 
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -29,12 +32,35 @@
   --physics:        #6f93ab;
   --chemistry:      #b06349;
 
-  --radius:         3px;
-  --radius-lg:      4px;
+  /* Radius scale — continuous, Apple-style curves. (Previously
+     --radius/--radius-lg were defined but never actually referenced
+     anywhere in this file — every corner was a stray hardcoded
+     value. This scale is now applied throughout instead.) */
+  --r-sm:           10px;
+  --r-md:           14px;
+  --r-lg:           20px;
+  --r-xl:           26px;
+  --r-pill:         999px;
+
+  /* Liquid Glass — a translucent functional layer that sits ABOVE
+     content (nav bars, toolbars, sheets, floating controls). Never
+     applied to content itself, per HIG's Materials/Liquid Glass
+     guidance. */
+  --glass-bg:       rgba(28, 28, 37, 0.55);
+  --glass-bg-strong: rgba(23, 23, 31, 0.72);
+  --glass-border:   rgba(244, 241, 232, 0.14);
+  --glass-blur:     blur(20px) saturate(1.5);
+  --glass-shadow:   0 8px 30px rgba(0, 0, 0, 0.35);
+
   --max-w:          1180px;
   --nav-h:          64px;
+
+  /* Motion — spring-like curves instead of flat eases, used for
+     anything a person taps/presses (buttons, cards, sheets). Entry/
+     ambient motion keeps the gentler --ease-soft. */
   --ease:           cubic-bezier(0.19, 1, 0.22, 1);
   --ease-soft:      cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring:    cubic-bezier(0.34, 1.56, 0.64, 1);
 
   --serif:  'Fraunces', 'Iowan Old Style', Georgia, serif;
   --sans:   'Archivo', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
@@ -299,70 +325,64 @@ html.fonts-ready .gate__spine {
 
 .gate__input {
   width: 100%;
-  padding: 8px 2px 10px;
-  background: transparent;
-  border: none;
-  border-bottom: 1px solid var(--line-strong);
+  height: 50px;
+  padding: 0 18px;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-lg);
   color: var(--paper);
   font-family: var(--sans);
   font-size: 16px;
   outline: none;
+  transition: border-color 0.25s var(--ease-soft), box-shadow 0.25s var(--ease-soft);
 }
 
 .gate__input::placeholder { color: var(--paper-faint); }
 
-.gate__field-line {
-  position: absolute;
-  left: 0; bottom: -1px;
-  width: 100%;
-  height: 1px;
-  background: var(--brass);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 0.4s var(--ease);
+.gate__input:focus {
+  border-color: var(--brass-dim);
+  box-shadow: 0 0 0 4px rgba(201, 161, 90, 0.14);
 }
 
-.gate__input:focus ~ .gate__field-line { transform: scaleX(1); }
+/* Retired the old underline "field-line" element in favor of the
+   glass input's own focus ring above — kept as a no-op selector in
+   case anything still references the class. */
+.gate__field-line { display: none; }
 
 .gate__btn {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
-  padding: 10px 2px;
-  background: none;
+  justify-content: center;
+  gap: 8px;
+  height: 50px;
+  padding: 0 22px;
+  background: var(--brass);
   border: none;
-  color: var(--paper);
+  border-radius: var(--r-pill);
+  color: var(--ink);
   font-family: var(--sans);
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
+  transition: transform 0.2s var(--ease-spring), opacity 0.2s var(--ease-soft), box-shadow 0.2s var(--ease-soft);
+  box-shadow: 0 6px 20px rgba(201, 161, 90, 0.25);
 }
+
+.gate__btn:hover { box-shadow: 0 8px 26px rgba(201, 161, 90, 0.35); }
+.gate__btn:active { transform: scale(0.96); }
 
 .gate__btn-label { position: relative; }
 
-.gate__btn-label::after {
-  content: '';
-  position: absolute;
-  left: 0; bottom: -3px;
-  width: 100%;
-  height: 1px;
-  background: currentColor;
-  transform: scaleX(1);
-  transform-origin: right;
-  transition: transform 0.35s var(--ease);
-}
-
-.gate__btn:hover .gate__btn-label::after { transform: scaleX(0); transform-origin: left; }
-
-.gate__btn svg { transition: transform 0.3s var(--ease); }
-.gate__btn:hover svg { transform: translateX(4px); color: var(--brass); }
+.gate__btn svg { transition: transform 0.3s var(--ease-spring); }
+.gate__btn:hover svg { transform: translateX(3px); }
 
 /* Busy state — shown the instant Continue is tapped, before the
    (up to ~1.5s) device/IP checks resolve, so the tap never looks
    like it did nothing. */
-.gate__btn.is-busy { opacity: 0.55; cursor: default; pointer-events: none; }
-.gate__btn.is-busy .gate__btn-label::after { transform: scaleX(0); }
+.gate__btn.is-busy { opacity: 0.6; cursor: default; pointer-events: none; }
 .gate__btn.is-busy svg { animation: gateBtnSpin 0.7s linear infinite; }
 
 @keyframes gateBtnSpin { to { transform: rotate(360deg); } }
@@ -398,10 +418,10 @@ html.fonts-ready .gate__spine {
   top: 0;
   z-index: 100;
   height: var(--nav-h);
-  background: rgba(18, 18, 24, 0.82);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--line);
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border);
 }
 
 .nav__inner {
@@ -436,21 +456,24 @@ html.fonts-ready .gate__spine {
 }
 
 .nav__contact {
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: none;
-  border: 1px solid var(--line-strong);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
   border-radius: 50%;
   color: var(--paper-dim);
   text-decoration: none;
   flex-shrink: 0;
-  transition: border-color 0.2s, color 0.2s;
+  transition: border-color 0.2s var(--ease-soft), color 0.2s var(--ease-soft), transform 0.15s var(--ease-spring);
 }
 
 .nav__contact:hover { border-color: var(--brass-dim); color: var(--brass); }
+.nav__contact:active { transform: scale(0.9); }
 
 .nav__greeting {
   font-family: var(--sans);
@@ -463,20 +486,23 @@ html.fonts-ready .gate__spine {
 }
 
 .nav__user {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: none;
-  border: 1px solid var(--line-strong);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
   border-radius: 50%;
   color: var(--paper-dim);
   cursor: pointer;
-  transition: border-color 0.2s, color 0.2s;
+  transition: border-color 0.2s var(--ease-soft), color 0.2s var(--ease-soft), transform 0.15s var(--ease-spring);
 }
 
 .nav__user:hover { border-color: var(--brass-dim); color: var(--brass); }
+.nav__user:active { transform: scale(0.9); }
 
 /* ═══════════════════════════════════════════════════════════════
    SHELL & BREADCRUMBS
@@ -866,8 +892,10 @@ html.fonts-ready .gate__spine {
   max-height: 30px;
   overflow: hidden;
   padding: 0 10px;
-  background: var(--ink);
-  border-bottom: 1px solid var(--line);
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border);
   flex-shrink: 0;
   /* Belt-and-braces: .viewer is already position:fixed/inset:0 and
      this bar sits outside the scrollable .viewer__pages, so it can't
@@ -1129,15 +1157,21 @@ html.fonts-ready .gate__spine {
 .contact-line a {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   color: var(--paper-dim);
   text-decoration: none;
-  border-bottom: 1px solid var(--line-strong);
-  padding-bottom: 1px;
-  transition: color 0.15s, border-color 0.15s;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-pill);
+  transition: color 0.15s var(--ease-soft), border-color 0.15s var(--ease-soft), transform 0.15s var(--ease-spring);
 }
 
 .contact-line a:hover { color: var(--brass); border-color: var(--brass-dim); }
+.contact-line a:active { transform: scale(0.95); }
 
 .contact-line__sep {
   color: var(--paper-faint);
@@ -1253,7 +1287,7 @@ html.fonts-ready .gate__spine {
   .file-card__overlay-btn { width: 92px; padding: 7px 10px; font-size: 11px; }
   .crumbs { padding: 20px 0 4px; }
   .gate__form { flex-direction: column; align-items: stretch; }
-  .gate__btn { justify-content: center; padding: 12px 2px; }
+  .gate__btn { justify-content: center; padding: 0 22px; }
 
   .viewer__btn-text { display: none; }
 }
@@ -1284,8 +1318,13 @@ html.fonts-ready .gate__spine {
 
 .admin__nav {
   flex-shrink: 0;
-  border-bottom: 1px solid var(--line);
-  background: var(--ink-raised);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 1px solid var(--glass-border);
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 
 .admin__nav-inner {
@@ -1310,16 +1349,22 @@ html.fonts-ready .gate__spine {
   font-family: var(--sans);
   font-size: 12.5px;
   font-weight: 600;
-  padding: 8px 16px;
-  border-radius: 999px;
+  padding: 9px 16px;
+  border-radius: var(--r-pill);
   border: 1px solid var(--line-strong);
   background: var(--brass);
   color: var(--ink);
   cursor: pointer;
+  transition: transform 0.15s var(--ease-spring), opacity 0.15s var(--ease-soft);
 }
 
+.admin__nav-btn:active { transform: scale(0.95); }
+
 .admin__nav-btn--ghost {
-  background: none;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-color: var(--glass-border);
   color: var(--paper-dim);
 }
 
