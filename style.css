@@ -525,19 +525,23 @@ html.fonts-ready .gate__spine {
 .crumb {
   display: inline-flex;
   align-items: center;
-  padding: 6px 4px;
+  height: 30px;
+  padding: 0 10px;
   background: none;
   border: none;
+  border-radius: var(--r-pill);
   color: var(--paper-faint);
   font-family: var(--sans);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: color 0.15s;
+  transition: color 0.15s var(--ease-soft), background 0.15s var(--ease-soft), transform 0.15s var(--ease-spring);
 }
 
-.crumb:hover { color: var(--paper); }
+.crumb:hover { color: var(--paper); background: var(--glass-bg); }
+.crumb:active { transform: scale(0.94); }
 .crumb--active { color: var(--paper-dim); cursor: default; }
+.crumb--active:hover { background: none; }
 .crumb-sep {
   color: var(--paper-faint);
   font-family: var(--serif);
@@ -566,18 +570,18 @@ html.fonts-ready .gate__spine {
 .subjects {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
-  background: var(--line);
-  border: 1px solid var(--line);
+  gap: 16px;
 }
 
 .subject {
   position: relative;
-  background: var(--ink);
-  padding: 40px 28px 32px;
+  background: var(--ink-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 36px 26px 28px;
   cursor: pointer;
   overflow: hidden;
-  transition: background 0.3s var(--ease-soft);
+  transition: transform 0.35s var(--ease-spring), border-color 0.3s var(--ease-soft), box-shadow 0.35s var(--ease-soft);
 }
 
 .subject::before {
@@ -585,15 +589,21 @@ html.fonts-ready .gate__spine {
   position: absolute;
   top: 0; left: 0;
   width: 100%;
-  height: 2px;
+  height: 3px;
   background: var(--subject-color);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
   transform: scaleX(0);
   transform-origin: left;
   transition: transform 0.45s var(--ease);
 }
 
-.subject:hover { background: var(--ink-raised); }
+.subject:hover {
+  transform: translateY(-4px);
+  border-color: var(--line-strong);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+}
 .subject:hover::before { transform: scaleX(1); }
+.subject:active { transform: translateY(-1px) scale(0.99); }
 
 .subject__icon {
   width: 30px;
@@ -603,10 +613,10 @@ html.fonts-ready .gate__spine {
   justify-content: center;
   color: var(--subject-color);
   margin-bottom: 22px;
-  transition: transform 0.35s var(--ease);
+  transition: transform 0.35s var(--ease-spring);
 }
 
-.subject:hover .subject__icon { transform: translateY(-2px); }
+.subject:hover .subject__icon { transform: translateY(-2px) scale(1.08); }
 
 .subject__name {
   font-family: var(--serif);
@@ -643,33 +653,42 @@ html.fonts-ready .gate__spine {
 .subfolders {
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--line);
+  gap: 10px;
 }
 
 .subfolder {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 20px 4px;
-  border-bottom: 1px solid var(--line);
+  padding: 18px 18px;
+  background: var(--ink-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
   cursor: pointer;
-  transition: padding-left 0.3s var(--ease-soft);
+  transition: transform 0.25s var(--ease-spring), border-color 0.25s var(--ease-soft), background 0.25s var(--ease-soft);
 }
 
-.subfolder:hover { padding-left: 12px; }
+.subfolder:hover {
+  transform: translateX(4px);
+  border-color: var(--line-strong);
+  background: var(--ink-raised-2);
+}
+.subfolder:active { transform: translateX(4px) scale(0.99); }
 
 .subfolder__icon {
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  background: var(--ink-raised-2);
+  border-radius: var(--r-sm);
   color: var(--paper-faint);
-  transition: color 0.2s;
+  transition: color 0.2s var(--ease-soft), background 0.2s var(--ease-soft);
 }
 
-.subfolder:hover .subfolder__icon { color: var(--brass); }
+.subfolder:hover .subfolder__icon { color: var(--brass); background: rgba(201, 161, 90, 0.12); }
 
 .subfolder__info { flex: 1; min-width: 0; }
 
@@ -689,7 +708,7 @@ html.fonts-ready .gate__spine {
 .subfolder__chevron {
   color: var(--paper-faint);
   flex-shrink: 0;
-  transition: transform 0.3s var(--ease), color 0.2s;
+  transition: transform 0.3s var(--ease-spring), color 0.2s var(--ease-soft);
 }
 
 .subfolder:hover .subfolder__chevron { transform: translateX(4px); color: var(--brass); }
@@ -709,14 +728,20 @@ html.fonts-ready .gate__spine {
   aspect-ratio: 3 / 4;
   background: var(--ink-raised);
   border: 1px solid var(--line);
+  border-radius: var(--r-md);
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: border-color 0.3s;
+  transition: border-color 0.3s var(--ease-soft), transform 0.3s var(--ease-spring), box-shadow 0.3s var(--ease-soft);
 }
 
-.file-card:hover .file-card__preview { border-color: var(--line-strong); }
+.file-card:hover .file-card__preview {
+  border-color: var(--line-strong);
+  transform: translateY(-3px);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.3);
+}
+.file-card:active .file-card__preview { transform: translateY(-1px) scale(0.98); }
 
 .file-card__preview canvas {
   width: 100%;
@@ -766,11 +791,11 @@ html.fonts-ready .gate__spine {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  background: rgba(18, 18, 24, 0.86);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   opacity: 0;
-  transition: opacity 0.25s;
+  transition: opacity 0.25s var(--ease-soft);
 }
 
 .file-card:hover .file-card__overlay,
@@ -781,23 +806,25 @@ html.fonts-ready .gate__spine {
   align-items: center;
   gap: 7px;
   padding: 9px 18px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   font-family: var(--sans);
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
   text-decoration: none;
   border: none;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition: background 0.15s var(--ease-soft), color 0.15s var(--ease-soft), border-color 0.15s var(--ease-soft), transform 0.15s var(--ease-spring);
   width: 128px;
   justify-content: center;
 }
+
+.file-card__overlay-btn:active { transform: scale(0.94); }
 
 .file-card__overlay-btn--view { background: var(--paper); color: var(--ink); }
 .file-card__overlay-btn--view:hover { background: var(--brass); }
 
 .file-card__overlay-btn--dl {
-  background: transparent;
+  background: var(--glass-bg);
   color: var(--paper);
   border: 1px solid var(--line-strong);
 }
