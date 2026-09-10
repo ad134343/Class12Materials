@@ -254,30 +254,29 @@
   // ── Device fingerprint ──────────────────────────────────
   // A hash of stable browser/hardware signals — NOT tied to any name
   // typed into the gate. This is what lets us block a specific phone
-  // even if it enters someone else's name. It isn't perfect: clearing
-  // site data doesn't change it (nothing is stored — it's recomputed
-  // from hardware/browser traits each time), but a different browser
-  // on the same phone, or reinstalling/resetting the browser's canvas
-  // rendering, can shift it. Good enough as a sticky secondary layer;
-  // not a substitute for the name-based block.
-  function canvasFingerprint() {
-    try {
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      ctx.textBaseline = "top";
-      ctx.font = "14px Arial";
-      ctx.fillStyle = "#f60";
-      ctx.fillRect(125, 1, 62, 20);
-      ctx.fillStyle = "#069";
-      ctx.fillText("c12-fingerprint", 2, 15);
-      ctx.fillStyle = "rgba(102, 204, 0, 0.7)";
-      ctx.fillText("c12-fingerprint", 4, 17);
-      return canvas.toDataURL();
-    } catch {
-      return "";
-    }
-  }
-
+  // even if it enters someone else's name.
+  //
+  // The canvas-rendering signal that used to be part of this was
+  // REMOVED after testing showed it changing across a fully-closed-
+  // and-reopened browser on the exact same phone — which meant a
+  // banned device could get a fresh ID just by force-closing the app
+  // and relaunching the link. That's not a bug in this code: recent
+  // Chrome (and most in-app browsers, WhatsApp's included) now inject
+  // small random noise into canvas readback specifically to defeat
+  // canvas fingerprinting — it's a deliberate anti-tracking feature,
+  // and it resets that noise on a fresh session. There's no reliable
+  // way to read a "clean" canvas value around it from JavaScript.
+  //
+  // What's left below is every OTHER signal — none of them are
+  // subject to that noise, so they should now be stable across
+  // reopens on the same phone. Trade-off worth knowing: this makes
+  // the fingerprint a little less unique between two totally
+  // different phones that happen to share the exact same model,
+  // browser version, screen size, language, and timezone — an edge
+  // case, but not impossible. There's no purely-client-side way to
+  // fully close that gap; a hard guarantee would need device
+  // attestation from a native app or phone-number verification,
+  // neither of which fits a static site like this one.
   let cachedDeviceId = null;
   async function getDeviceId() {
     if (cachedDeviceId) return cachedDeviceId;
@@ -287,8 +286,7 @@
       navigator.language || "",
       String(navigator.hardwareConcurrency || ""),
       `${screen.width}x${screen.height}x${screen.colorDepth}`,
-      (Intl.DateTimeFormat().resolvedOptions().timeZone || ""),
-      canvasFingerprint()
+      (Intl.DateTimeFormat().resolvedOptions().timeZone || "")
     ];
     cachedDeviceId = await sha256Hex(parts.join("||"));
     return cachedDeviceId;
