@@ -1418,13 +1418,37 @@ html.fonts-ready .gate__spine {
   margin: 0 0 14px;
 }
 
-.admin__empty, .admin__loading {
+.admin__empty {
   font-family: var(--sans);
   font-size: 13px;
   color: var(--paper-faint);
   padding: 18px 4px;
   margin: 0;
 }
+
+.admin__loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--paper-faint);
+  padding: 18px 4px;
+  margin: 0;
+}
+
+.admin__loading::before {
+  content: '';
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--brass);
+  animation: adminSpin 0.8s linear infinite;
+}
+
+@keyframes adminSpin { to { transform: rotate(360deg); } }
 
 /* Live "who's online" */
 .admin__presence-list { display: flex; flex-direction: column; gap: 8px; }
@@ -1435,13 +1459,18 @@ html.fonts-ready .gate__spine {
   gap: 12px;
   padding: 12px 14px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   background: var(--ink-raised);
   cursor: pointer;
-  transition: border-color 0.15s;
+  transition: border-color 0.2s var(--ease-soft), transform 0.25s var(--ease-spring), box-shadow 0.25s var(--ease-soft);
 }
 
-.admin__presence-row:hover { border-color: var(--brass-dim); }
+.admin__presence-row:hover {
+  border-color: var(--brass-dim);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.25);
+}
+.admin__presence-row:active { transform: translateY(0) scale(0.99); }
 
 .admin__presence-dot {
   width: 8px;
@@ -1450,6 +1479,12 @@ html.fonts-ready .gate__spine {
   background: #6fbf73;
   box-shadow: 0 0 0 3px rgba(111, 191, 115, 0.18);
   flex-shrink: 0;
+  animation: presencePulse 2.2s ease-in-out infinite;
+}
+
+@keyframes presencePulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(111, 191, 115, 0.18); }
+  50% { box-shadow: 0 0 0 6px rgba(111, 191, 115, 0.08); }
 }
 
 .admin__presence-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
@@ -1478,15 +1513,16 @@ html.fonts-ready .gate__spine {
   font-size: 11.5px;
   font-weight: 600;
   padding: 6px 10px;
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line-strong);
   background: var(--ink-raised-2);
   color: var(--paper-dim);
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
+  transition: border-color 0.15s var(--ease-soft), color 0.15s var(--ease-soft), transform 0.15s var(--ease-spring);
 }
 
 .admin__presence-btn:hover { border-color: var(--brass-dim); color: var(--brass); }
+.admin__presence-btn:active { transform: scale(0.92); }
 
 .admin__presence-btn--danger:hover { border-color: rgba(176, 99, 73, 0.6); color: var(--chemistry); }
 
@@ -1500,16 +1536,19 @@ html.fonts-ready .gate__spine {
   gap: 10px;
   padding: 13px 14px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color 0.2s var(--ease-soft), background 0.2s var(--ease-soft), transform 0.25s var(--ease-spring), box-shadow 0.25s var(--ease-soft);
 }
 
 .admin__roster-row:hover, .admin__roster-row:focus-visible {
   border-color: var(--brass-dim);
   background: var(--ink-raised);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.25);
   outline: none;
 }
+.admin__roster-row:active { transform: translateY(0) scale(0.99); }
 
 .admin__roster-name {
   font-family: var(--sans);
@@ -1554,17 +1593,27 @@ html.fonts-ready .gate__spine {
   inset: 0;
   background: rgba(9, 9, 12, 0.72);
   backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: fadeIn 0.25s var(--ease-soft) both;
 }
 
 .admin-notice__panel {
   position: relative;
   width: min(360px, 100%);
-  background: var(--ink-raised);
-  border: 1px solid var(--line-strong);
-  border-radius: 14px;
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-lg);
   padding: 24px 22px 20px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--glass-shadow);
   text-align: center;
+  animation: noticePopIn 0.4s var(--ease-spring) both;
+}
+
+@keyframes noticePopIn {
+  from { transform: scale(0.9); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
 }
 
 .admin-notice__text {
@@ -1580,32 +1629,48 @@ html.fonts-ready .gate__spine {
   font-family: var(--sans);
   font-size: 13px;
   font-weight: 600;
-  padding: 9px 22px;
-  border-radius: 8px;
+  padding: 9px 26px;
+  border-radius: var(--r-pill);
   border: 1px solid var(--brass-dim);
   background: var(--brass);
   color: var(--ink);
   cursor: pointer;
+  transition: transform 0.15s var(--ease-spring), opacity 0.15s var(--ease-soft);
 }
 
 .admin-notice__btn:hover { opacity: 0.9; }
+.admin-notice__btn:active { transform: scale(0.94); }
 
 .admin-detail__overlay {
   position: absolute;
   inset: 0;
-  background: rgba(9, 9, 12, 0.7);
+  background: rgba(9, 9, 12, 0.6);
   backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: fadeIn 0.25s var(--ease-soft) both;
 }
 
 .admin-detail__panel {
   position: relative;
   width: min(480px, 100%);
   height: 100%;
-  background: var(--ink);
-  border-left: 1px solid var(--line-strong);
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-left: 1px solid var(--glass-border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* display:none -> flex on the .hidden toggle remounts this element,
+     which is what makes a plain keyframe animation (unlike a
+     transition) replay every time the drawer opens. */
+  animation: slideInRight 0.4s var(--ease-spring) both;
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideInRight {
+  from { transform: translateX(24px); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
 }
 
 .admin-detail__bar {
@@ -1634,9 +1699,11 @@ html.fonts-ready .gate__spine {
   justify-content: center;
   color: var(--paper-faint);
   cursor: pointer;
+  transition: border-color 0.15s var(--ease-soft), color 0.15s var(--ease-soft), transform 0.15s var(--ease-spring);
 }
 
 .admin-detail__close:hover { border-color: rgba(176, 99, 73, 0.5); color: var(--chemistry); }
+.admin-detail__close:active { transform: scale(0.9); }
 
 .admin-detail__body { flex: 1; overflow-y: auto; padding: 20px; }
 
@@ -1653,7 +1720,7 @@ html.fonts-ready .gate__spine {
   gap: 4px;
   padding: 14px 12px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   text-align: center;
 }
 
@@ -1689,7 +1756,7 @@ html.fonts-ready .gate__spine {
   justify-content: space-between;
   gap: 10px;
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   background: var(--ink-raised);
   font-family: var(--sans);
   font-size: 12.5px;
@@ -1706,9 +1773,13 @@ html.fonts-ready .gate__spine {
   gap: 1px;
   padding: 8px 10px;
   border-bottom: 1px solid var(--line);
+  border-radius: var(--r-sm);
   font-family: var(--sans);
   font-size: 11.5px;
+  transition: background 0.15s var(--ease-soft);
 }
+
+.admin__timeline-row:hover { background: var(--ink-raised); }
 
 .admin__timeline-time { color: var(--paper-faint); }
 .admin__timeline-type { color: var(--brass); font-weight: 600; text-transform: capitalize; }
