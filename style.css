@@ -1002,8 +1002,9 @@ html.fonts-ready .gate__spine {
 /* Floating bottom-center pill, like Drive/Docs — fixed to the
    viewport rather than sitting in the top bar, so it's always in
    thumb reach on a phone and never fights the document for space.
-   Removed from .viewer__actions' flow (position: fixed) but left in
-   the same place in the DOM. */
+   Lives as a sibling of .viewer__bar in the DOM (not nested inside
+   it) specifically so the bar's backdrop-filter can't hijack this
+   element's position:fixed containing block. */
 .viewer__zoom {
   position: fixed;
   left: 50%;

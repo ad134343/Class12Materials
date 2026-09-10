@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=12">
+    <link rel="stylesheet" href="style.css?v=13">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
@@ -145,15 +145,22 @@
                     </div>
                 </div>
                 <div class="viewer__actions">
-                    <div class="viewer__zoom">
-                        <button id="viewerZoomOut" class="viewer__zoom-btn" aria-label="Zoom out">−</button>
-                        <span id="viewerZoomLabel" class="viewer__zoom-label">100%</span>
-                        <button id="viewerZoomIn" class="viewer__zoom-btn" aria-label="Zoom in">+</button>
-                    </div>
                     <button id="viewerClose" class="viewer__btn viewer__btn--close" aria-label="Close">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
                 </div>
+            </div>
+            <!-- Moved out of .viewer__bar: that bar now has backdrop-filter
+                 for the glass look, and backdrop-filter makes an element
+                 the containing block for any position:fixed descendant —
+                 which was silently anchoring this pill inside the (thin,
+                 clipped) bar instead of the viewport. Living as a sibling
+                 of .viewer__bar instead, its position:fixed now correctly
+                 anchors to the screen again. -->
+            <div class="viewer__zoom">
+                <button id="viewerZoomOut" class="viewer__zoom-btn" aria-label="Zoom out">−</button>
+                <span id="viewerZoomLabel" class="viewer__zoom-label">100%</span>
+                <button id="viewerZoomIn" class="viewer__zoom-btn" aria-label="Zoom in">+</button>
             </div>
             <div id="viewerPages" class="viewer__pages"></div>
         </div>
