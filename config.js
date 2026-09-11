@@ -42,16 +42,22 @@ const SITE_CONFIG = {
   //    await __hashAdminSecret("your chosen phrase")
   //  then paste the value it prints below.
   //
-  //  "key" IS sent as-is on every admin request (it has to be, to
-  //  authenticate to the backend) so hashing it wouldn't add
-  //  anything — it's pre-filled below with a random value that
-  //  already matches google-apps-script.gs. Change it any time, in
-  //  both places together, if you want a different one.
+  //  SECURITY FIX: this used to also have a plaintext "key" field
+  //  here, sent as-is on every admin request. The problem: this file
+  //  is publicly downloadable by anyone who visits the site — view
+  //  source, or just fetch config.js directly — so that key was never
+  //  actually secret, and anyone technical enough to look could have
+  //  called every admin endpoint (suspend, approve, force-logout,
+  //  broadcast...) without ever knowing your passphrase. Fixed by
+  //  having the browser reuse secretHash itself as the request token
+  //  once you've typed the correct phrase — it's a one-way hash, safe
+  //  to publish, and it's the only thing that needs to match
+  //  google-apps-script.gs's ADMIN_KEY now (paste this exact value
+  //  there, not a separate short key).
   admin: {
     enabled: true,
     salt: "c12-admin-r4k9",
     secretHash: "66575fc2e3bd47844b7bb501539c9aa1293b85640c9cf094c2c70840b9c21630",
-    key: "bdc7865253",
   },
 
   // ── Access List (Who Can Log In) ─────────────────────────────
@@ -77,7 +83,7 @@ const SITE_CONFIG = {
     salt: "c12-portal-x7q",
     hashes: [
       "cd44a6dc76e850943a98a0fd9c23731f76833c1bbecc876ab3daf259fd2be822", "12494164d568916a50384c29eb9f683e8d1bea34bec9f15f8fed13a0761d4f03", "f5188c339af6c95ab31ee8fd91965892ce3557f0f60f49136b94c57b5e18e61a", "61f81385444c4c205c553379381c122ece3a231b77f91a61cc737f0691809fcc",
-      "207a83cc143c5c6b9f502326f6fc120683b8e3cd68e7ee70aa14e02b77308c87",
+      "207a83cc143c5c6b9f502326f6fc120683b8e3cd68e7ee70aa14e02b77308c87", "1704f1b6b18b2008352e7badd7dbd41d31244f4ccb449536069a94349e14da2e", "c11d7095e18d9a9557406480b6905d3f34f9842fcf9b99ac5317fca278a3a67e", "cd6a762b1b472e6d1e0de3b4b86a317fc4ba4fa4fa6dd12c4de4b15205f7387d",
       "a938328c760161fe3d06e925212a521002bbdf36c3b47d9c9860c05b1f167711", "8e758be8cd40e94be10dc10838944b7f74e9cfb4742035a8cb506a5367e27446", "835f08208571bc0e23a72f24909b7a84520f85a3ddfbe59c1480414367bdc671", "2db2c3a9cc64703d558cd981ebfe55b5c2ff7ac43280d9e8dc857ac18deb51f0",
       "f8f2a75488a96853f217bfe38b4f267dd87d34efc318d09dc15e3f0bdd6c9816", "39115d8d350ccd34b989968bdda40aa57fc21190a4e1bd4d740a812d840b7313", "f073cdf98b9e0c8befdb512caf472d84787f21dad2af3312d1b247aed5317ffd", "2a2705931d55237b68a9094c3cb1b7be42dc15b512dc7343fd8dfae9c339d48e",
       "154839339a84c5f77dd60137050889366160324188f5d67ac894b85ea15c186b", "3b1e0f2e1267ffcbb5b9add1eef156d25a131e925d9d5bc60d100d712be3cf38", "dcab496ac13a6461ebe5db3af814160f40f0bfe834ccf92cf05672405d834b1d", "1071cbb09808bb1fd7cfe64b013f342bccca655a03292bef1eae470fab3b0a04",
@@ -296,22 +302,6 @@ const SITE_CONFIG = {
             { name: "Ch 6 — Haloalkanes & Haloarenes", path: "chemistry/Chapter Notes/Chapter 6 - Haloalkanes & Haloarenes.pdf" },
             { name: "Ch 7 — Alcohols, Phenols & Ethers", path: "chemistry/Chapter Notes/Chapter 7 - Alcohols Phenols & Ethers.pdf" },
             { name: "Ch 10 — Biomolecules", path: "chemistry/Chapter Notes/Chapter 10 - Biomolecules.pdf" },
-          ]
-        },
-        {
-          id: "chemistry-formulas",
-          name: "Chemistry Formulas",
-          files: [
-            { name: "01. Solutions Formulas", path: "chemistry/Chemistry Formulas/1.Solutions Formulas.pdf" },
-            { name: "02. Electrochemistry Formulas", path: "chemistry/Chemistry Formulas/2.Electrochemistry Formulas.pdf" },
-            { name: "03. Chemical Kinetics Formulas", path: "chemistry/Chemistry Formulas/3.Chemical Kinetics Formulas.pdf" },
-            { name: "04. D & F Block Elements Formulas", path: "chemistry/Chemistry Formulas/4.D & F Block Elements Formulas.pdf" },
-            { name: "05. Coordination Compounds Formulas", path: "chemistry/Chemistry Formulas/5.Coordination Compounds Formulas.pdf" },
-            { name: "06. Haloalkanes & Haloarenes Formulas", path: "chemistry/Chemistry Formulas/6.Haloalkanes & Haloarenes Formulas.pdf" },
-            { name: "07. Alcohols, Phenols & Ethers Formulas", path: "chemistry/Chemistry Formulas/7.Alcohols,Phenols & Ethers Formulas.pdf" },
-            { name: "08. Aldehydes, Ketones & Carboxylic Acids Formulas", path: "chemistry/Chemistry Formulas/8.Aldehydes,Ketones & Carboxylic Acids Formulas.pdf" },
-            { name: "09. Organic Compounds Containing Nitrogen Formulas", path: "chemistry/Chemistry Formulas/9.Organic Compounds Containing Nitrogen Formulas.pdf" },
-            { name: "10. Biomolecules Formulas", path: "chemistry/Chemistry Formulas/10.Biomolecules Formulas.pdf" },
           ]
         },
       ]

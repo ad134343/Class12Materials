@@ -144,6 +144,7 @@
   let curSubject  = null;
   let curFolder   = null;
   let currentName = "";
+  let adminApiToken = null; // set only after the passphrase gate succeeds — see hashAdminSecret usage above
 
   // ── Session / view tracking (for the activity log) ──────
   // sessionId identifies one "visit" (from the app becoming visible
@@ -697,6 +698,16 @@
       if (SITE_CONFIG.admin && SITE_CONFIG.admin.enabled && SITE_CONFIG.admin.secretHash) {
         const candidateHash = await hashAdminSecret(name);
         if (candidateHash === SITE_CONFIG.admin.secretHash) {
+          // The hash IS the API token from here on — nothing else is
+          // needed. This used to be a separate plaintext admin.key
+          // sitting in config.js, which is a publicly downloadable
+          // file: anyone opening dev tools could read it straight off
+          // and call every admin endpoint themselves, no passphrase
+          // needed. Reusing candidateHash instead means the only
+          // secret that ever exists is the passphrase itself, which
+          // never touches any file — exactly the same guarantee the
+          // access list and suspended list already rely on.
+          adminApiToken = candidateHash;
           nameInput.value = "";
           hideGateError();
           enterAdmin();
@@ -1479,10 +1490,9 @@
 
   function adminEndpointUrl(action, params) {
     const endpoint = SITE_CONFIG.logging && SITE_CONFIG.logging.endpoint;
-    const key = SITE_CONFIG.admin && SITE_CONFIG.admin.key;
     const url = new URL(endpoint);
     url.searchParams.set("action", action);
-    url.searchParams.set("key", key);
+    url.searchParams.set("key", adminApiToken || "");
     if (params) Object.keys(params).forEach((k) => url.searchParams.set(k, params[k]));
     return url.toString();
   }
