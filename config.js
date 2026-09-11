@@ -299,6 +299,7 @@ const SITE_CONFIG = {
             { name: "Ch 2 — Electrochemistry", path: "chemistry/Chapter Notes/Chapter 2 - Electrochemistry.pdf" },
             { name: "Ch 3 — Chemical Kinetics", path: "chemistry/Chapter Notes/Chapter 3 - Chemical Kinetics.pdf" },
             { name: "Ch 4 — D & F Block Elements", path: "chemistry/Chapter Notes/Chapter 4 - D & F Block Elements.pdf" },
+            { name: "Ch 5 — Coordination Compounds", path: "chemistry/Chapter Notes/Chapter 5 - Coordination Compounds.pdf" },
             { name: "Ch 6 — Haloalkanes & Haloarenes", path: "chemistry/Chapter Notes/Chapter 6 - Haloalkanes & Haloarenes.pdf" },
             { name: "Ch 7 — Alcohols, Phenols & Ethers", path: "chemistry/Chapter Notes/Chapter 7 - Alcohols Phenols & Ethers.pdf" },
             { name: "Ch 10 — Biomolecules", path: "chemistry/Chapter Notes/Chapter 10 - Biomolecules.pdf" },
