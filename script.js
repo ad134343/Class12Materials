@@ -137,6 +137,7 @@
   const adminAuditList     = $("#adminAuditList");
   const adminBroadcastBtn  = $("#adminBroadcastBtn");
   const adminExportBtn     = $("#adminExportBtn");
+  const adminContentStatsList = $("#adminContentStatsList");
 
   // ── State ──────────────────────────────────────────────
   let curView     = "home";
@@ -190,11 +191,36 @@
     "tera baap", "teri maa", "teri behen"
   ];
 
+  // Deliberately NOT a call to an external moderation API — see the
+  // reasoning in chat: that would add a network dependency, a cost,
+  // and latency to every single login, legitimate or not, for a name
+  // field. This instead defeats the cheap, common evasion tricks
+  // (leetspeak, spacing/punctuation, stretched letters) with a plain
+  // string transform, which covers the realistic threat model here.
+  const LEET_MAP = { "0": "o", "1": "l", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s" };
+  function squash(str) {
+    return normalizeName(str)
+      .split("")
+      .map((c) => LEET_MAP[c] || c)
+      .join("")
+      .replace(/[^a-z]/g, "")       // drop spaces/punctuation entirely
+      .replace(/(.)\1{2,}/g, "$1"); // "bsdkkkk" -> "bsdk"
+  }
+
   function looksAbusive(name) {
     const norm = normalizeName(name).replace(/[^a-z\s]/g, "");
     if (ABUSIVE_PHRASES.some((p) => norm.includes(p))) return true;
     const words = norm.split(/\s+/).filter(Boolean);
-    return words.some((w) => ABUSIVE_WHOLE_WORDS.includes(w));
+    if (words.some((w) => ABUSIVE_WHOLE_WORDS.includes(w))) return true;
+
+    // Second pass: squash out spacing/leetspeak/letter-stretching and
+    // check again. Restricted to words of 4+ letters — squashing
+    // removes spaces entirely, and re-checking a 2-letter word like
+    // "mc" as a bare substring would false-positive on ordinary names
+    // ("Ram Chandra" -> "ramchandra" contains "mc"). Longer words don't
+    // have that problem.
+    const squashed = squash(name);
+    return ABUSIVE_WHOLE_WORDS.filter((w) => w.length >= 4).some((w) => squashed.includes(squash(w)));
   }
 
   // The access list stores salted SHA-256 hashes, not plaintext names,
@@ -1270,6 +1296,29 @@
     // before (and why it went pixelated).
     const dpr = window.devicePixelRatio || 1;
 
+    // Stamps a faint, repeated, diagonal "name · date" watermark over
+    // a rendered PDF canvas. This does NOT stop screenshots or screen
+    // recording — nothing client-side can. What it does do is make
+    // any leaked page traceable back to whoever viewed it, which is
+    // the realistic goal for paid material shared as images.
+    function drawWatermark(ctx, canvas) {
+      const label = `${currentName || "unknown"} · ${new Date().toLocaleDateString()}`;
+      ctx.save();
+      ctx.globalAlpha = 0.09;
+      ctx.fillStyle = "#000";
+      ctx.font = `${Math.round(canvas.width / 22)}px Archivo, sans-serif`;
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate(-Math.PI / 6);
+      const stepX = canvas.width * 0.6;
+      const stepY = canvas.height * 0.22;
+      for (let y = -canvas.height; y < canvas.height; y += stepY) {
+        for (let x = -canvas.width; x < canvas.width; x += stepX) {
+          ctx.fillText(label, x, y);
+        }
+      }
+      ctx.restore();
+    }
+
     const renderPage = (pageNum) => {
       if (token !== viewerLoadToken) return Promise.resolve();
       return pdf.getPage(pageNum).then((page) => {
@@ -1288,7 +1337,9 @@
         pagesInner.appendChild(canvas);
 
         const ctx = canvas.getContext("2d");
-        return page.render({ canvasContext: ctx, viewport }).promise;
+        return page.render({ canvasContext: ctx, viewport }).promise.then(() => {
+          drawWatermark(ctx, canvas);
+        });
       });
     };
 
@@ -1495,6 +1546,28 @@
     renderAdminRoster();
     renderFlags();
     renderAuditLog();
+    renderContentStats();
+  }
+
+  async function renderContentStats() {
+    const data = await adminFetch("contentStats");
+    if (!data) return;
+    const stats = (data.stats || []).slice(0, 15);
+    adminContentStatsList.innerHTML = "";
+    if (!stats.length) {
+      adminContentStatsList.innerHTML = `<p class="admin__empty">No views logged yet</p>`;
+      return;
+    }
+    stats.forEach((s) => {
+      const mins = Math.round((s.seconds || 0) / 60);
+      const row = el("div", "admin__presence-row");
+      row.innerHTML = `
+        <div class="admin__presence-info">
+          <span class="admin__presence-name">${s.file}</span>
+          <span class="admin__presence-meta">${s.views} views · ${s.downloads} downloads · ${s.distinctViewers} people · ${mins}m total</span>
+        </div>`;
+      adminContentStatsList.appendChild(row);
+    });
   }
 
   async function renderApprovalQueue() {
@@ -1760,6 +1833,7 @@
         <div class="admin__roster-name">${p.name}${akaText}${p.suspended ? ' <span class="admin__roster-badge">suspended</span>' : ""}</div>
         <div class="admin__roster-stat">${totalMins}m total</div>
         <div class="admin__roster-stat">${p.sessionCount} session${p.sessionCount === 1 ? "" : "s"}</div>
+        <div class="admin__roster-stat">${p.filesTouched}/${p.totalKnownFiles} files</div>
         <div class="admin__roster-stat admin__roster-lastseen">Last seen ${lastSeen}</div>
         <button type="button" class="admin__presence-btn admin__presence-btn--danger" data-action="suspend">${p.suspended ? "Unsuspend" : "Suspend"}</button>
         <button type="button" class="admin__presence-btn" data-action="expiry">${p.expiresAt ? "Expires " + new Date(p.expiresAt).toLocaleDateString() : "Set expiry"}</button>`;
