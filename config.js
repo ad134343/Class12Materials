@@ -298,6 +298,22 @@ const SITE_CONFIG = {
             { name: "Ch 10 — Biomolecules", path: "chemistry/Chapter Notes/Chapter 10 - Biomolecules.pdf" },
           ]
         },
+        {
+          id: "chemistry-formulas",
+          name: "Chemistry Formulas",
+          files: [
+            { name: "01. Solutions Formulas", path: "chemistry/Chemistry Formulas/1.Solutions Formulas.pdf" },
+            { name: "02. Electrochemistry Formulas", path: "chemistry/Chemistry Formulas/2.Electrochemistry Formulas.pdf" },
+            { name: "03. Chemical Kinetics Formulas", path: "chemistry/Chemistry Formulas/3.Chemical Kinetics Formulas.pdf" },
+            { name: "04. D & F Block Elements Formulas", path: "chemistry/Chemistry Formulas/4.D & F Block Elements Formulas.pdf" },
+            { name: "05. Coordination Compounds Formulas", path: "chemistry/Chemistry Formulas/5.Coordination Compounds Formulas.pdf" },
+            { name: "06. Haloalkanes & Haloarenes Formulas", path: "chemistry/Chemistry Formulas/6.Haloalkanes & Haloarenes Formulas.pdf" },
+            { name: "07. Alcohols, Phenols & Ethers Formulas", path: "chemistry/Chemistry Formulas/7.Alcohols,Phenols & Ethers Formulas.pdf" },
+            { name: "08. Aldehydes, Ketones & Carboxylic Acids Formulas", path: "chemistry/Chemistry Formulas/8.Aldehydes,Ketones & Carboxylic Acids Formulas.pdf" },
+            { name: "09. Organic Compounds Containing Nitrogen Formulas", path: "chemistry/Chemistry Formulas/9.Organic Compounds Containing Nitrogen Formulas.pdf" },
+            { name: "10. Biomolecules Formulas", path: "chemistry/Chemistry Formulas/10.Biomolecules Formulas.pdf" },
+          ]
+        },
       ]
     },
   ]
