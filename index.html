@@ -181,7 +181,15 @@
         <div class="admin__shell">
             <section class="admin__section">
                 <h2 class="admin__section-title">Online right now</h2>
+                <div class="admin__toolbar">
+                    <button type="button" id="adminBroadcastBtn" class="admin__nav-btn admin__nav-btn--ghost">Message everyone online</button>
+                </div>
                 <div id="adminPresenceList" class="admin__presence-list"></div>
+            </section>
+
+            <section class="admin__section">
+                <h2 class="admin__section-title">Flagged</h2>
+                <div id="adminFlagsList" class="admin__presence-list"></div>
             </section>
 
             <section class="admin__section">
@@ -198,8 +206,14 @@
                 <div class="admin__toolbar">
                     <input type="text" id="adminRosterSearch" class="admin__toolbar-input" placeholder="Search by name…">
                     <button type="button" id="adminMergeBtn" class="admin__nav-btn admin__nav-btn--ghost" disabled>Merge selected (0)</button>
+                    <button type="button" id="adminExportBtn" class="admin__nav-btn admin__nav-btn--ghost">Export CSV</button>
                 </div>
                 <div id="adminRosterList" class="admin__roster-list"></div>
+            </section>
+
+            <section class="admin__section">
+                <h2 class="admin__section-title">Admin action log</h2>
+                <div id="adminAuditList" class="admin__presence-list"></div>
             </section>
         </div>
 

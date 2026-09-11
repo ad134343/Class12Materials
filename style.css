@@ -1553,7 +1553,7 @@ html.fonts-ready .gate__spine {
 
 .admin__roster-row {
   display: grid;
-  grid-template-columns: auto 1.3fr 0.7fr 0.7fr 1.2fr auto;
+  grid-template-columns: auto 1.3fr 0.7fr 0.7fr 1.2fr auto auto;
   align-items: center;
   gap: 10px;
   padding: 13px 14px;

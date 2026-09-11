@@ -133,6 +133,10 @@
   const adminAddNameBtn    = $("#adminAddNameBtn");
   const adminRosterSearch  = $("#adminRosterSearch");
   const adminMergeBtn      = $("#adminMergeBtn");
+  const adminFlagsList     = $("#adminFlagsList");
+  const adminAuditList     = $("#adminAuditList");
+  const adminBroadcastBtn  = $("#adminBroadcastBtn");
+  const adminExportBtn     = $("#adminExportBtn");
 
   // ── State ──────────────────────────────────────────────
   let curView     = "home";
@@ -168,6 +172,29 @@
   // "PRIYA", " priya ", "Priya" all match "Priya".
   function normalizeName(s) {
     return s.trim().replace(/\s+/g, " ").toLowerCase();
+  }
+
+  // ── Abuse/harassment filter ──────────────────────────────
+  // Best-effort, not exhaustive — extend these two lists if something
+  // gets through. ABUSIVE_WHOLE_WORDS is matched only against whole
+  // words (so it won't false-positive on a short substring buried
+  // inside a real name); ABUSIVE_PHRASES is matched as a substring of
+  // the full normalized string, for multi-word taunts.
+  const ABUSIVE_WHOLE_WORDS = [
+    "bsdk", "bsdka", "mc", "bc", "chutiya", "chutiye", "harami",
+    "kutta", "kutte", "kamina", "kamine", "randi", "gandu", "gaandu",
+    "bhosdi", "bhosdike", "saala", "saale",
+    "fuck", "fucker", "bitch", "asshole", "bastard", "dumbass"
+  ];
+  const ABUSIVE_PHRASES = [
+    "tera baap", "teri maa", "teri behen"
+  ];
+
+  function looksAbusive(name) {
+    const norm = normalizeName(name).replace(/[^a-z\s]/g, "");
+    if (ABUSIVE_PHRASES.some((p) => norm.includes(p))) return true;
+    const words = norm.split(/\s+/).filter(Boolean);
+    return words.some((w) => ABUSIVE_WHOLE_WORDS.includes(w));
   }
 
   // The access list stores salted SHA-256 hashes, not plaintext names,
@@ -575,6 +602,8 @@
     adminAddNameInput.addEventListener("keydown", (e) => { if (e.key === "Enter") onAdminAddName(); });
     adminRosterSearch.addEventListener("input", () => renderAdminRoster(true));
     adminMergeBtn.addEventListener("click", onMergeSelected);
+    adminBroadcastBtn.addEventListener("click", onBroadcastMessage);
+    adminExportBtn.addEventListener("click", onExportCsv);
     adminDetailClose.addEventListener("click", closeAdminDetail);
     adminDetailOverlay.addEventListener("click", closeAdminDetail);
 
@@ -668,6 +697,22 @@
         fetchBlockedDeviceIds()
       ]);
       const trace = `${location.href} || device:${deviceId} || ip:${ip || "unknown"}`;
+
+      // Harassment/abuse in the name field itself (e.g. someone typing
+      // slurs or taunts instead of a real name) gets the device
+      // auto-blocked outright — tagged "abusive" so the backend's
+      // doPost treats it exactly like a suspended-name login: the
+      // device fingerprint goes straight into BlockedDevices, no
+      // admin action needed. This is a best-effort word/phrase list
+      // (see ABUSIVE_WHOLE_WORDS/ABUSIVE_PHRASES below), not a
+      // guarantee — extend the lists if something gets through, and
+      // the manual Suspend button in admin still works independently
+      // of this for anything the filter misses.
+      if (looksAbusive(name)) {
+        logEvent("login", name, "abusive", trace);
+        showGateError("You're not authorized to view this page. Please enter your actual name.");
+        return;
+      }
 
       if (await isSuspended(name)) {
         logEvent("login", name, "suspended", trace);
@@ -1448,6 +1493,8 @@
     renderAdminPresence();
     renderApprovalQueue();
     renderAdminRoster();
+    renderFlags();
+    renderAuditLog();
   }
 
   async function renderApprovalQueue() {
@@ -1514,6 +1561,110 @@
     if (!confirm(`${currentlySuspended ? "Unsuspend" : "Suspend"} "${name}"?${currentlySuspended ? "" : " This also blocks every device and name they've ever used, and signs them out right now if online."}`)) return;
     await adminFetch(currentlySuspended ? "unsuspendIdentity" : "suspendIdentity", { name });
     renderAdminRoster();
+  }
+
+  async function onSetExpiry(name, currentExpiresAt) {
+    const current = currentExpiresAt ? new Date(currentExpiresAt).toISOString().slice(0, 10) : "";
+    const input = prompt(`Access expiry date for "${name}" (YYYY-MM-DD). Leave blank to remove expiry.`, current);
+    if (input === null) return; // cancelled
+    await adminFetch("setExpiry", { name, date: input.trim() });
+    renderAdminRoster();
+  }
+
+  async function renderFlags() {
+    const data = await adminFetch("flags");
+    if (!data) {
+      adminFlagsList.innerHTML = `<p class="admin__empty">Couldn't reach the sheet — check the admin key.</p>`;
+      return;
+    }
+    const { deviceCycling = [], rapidRepeat = [], bulkView = [] } = data.flags || {};
+    adminFlagsList.innerHTML = "";
+
+    const items = [
+      ...deviceCycling.map((f) => ({
+        label: `One device used ${f.names.length} different names: ${f.names.join(", ")}`,
+        when: f.when
+      })),
+      ...rapidRepeat.map((f) => ({
+        label: `"${f.name}" attempted login ${f.count} times, 5+ within a minute`,
+        when: f.when
+      })),
+      ...bulkView.map((f) => ({
+        label: `${f.name} opened/downloaded ${f.count} files, 8+ within 5 minutes`,
+        when: f.when
+      }))
+    ].sort((a, b) => new Date(b.when) - new Date(a.when));
+
+    if (!items.length) {
+      adminFlagsList.innerHTML = `<p class="admin__empty">Nothing flagged</p>`;
+      return;
+    }
+
+    items.forEach((f) => {
+      const row = el("div", "admin__presence-row");
+      row.innerHTML = `
+        <div class="admin__presence-info">
+          <span class="admin__presence-name">${f.label}</span>
+          <span class="admin__presence-meta">${new Date(f.when).toLocaleString()}</span>
+        </div>`;
+      adminFlagsList.appendChild(row);
+    });
+  }
+
+  async function onBroadcastMessage() {
+    const message = prompt("Message to send to everyone online right now:");
+    if (!message || !message.trim()) return;
+    const data = await adminFetch("presenceLive");
+    const online = (data && data.online) || [];
+    await Promise.all(online.map((p) => adminFetch("sendMessage", { sessionId: p.sessionId, message: message.trim() })));
+    alert(`Sent to ${online.length} online session${online.length === 1 ? "" : "s"}.`);
+  }
+
+  async function renderAuditLog() {
+    const data = await adminFetch("adminActionLog");
+    if (!data) return;
+    const log = data.log || [];
+    adminAuditList.innerHTML = "";
+    if (!log.length) {
+      adminAuditList.innerHTML = `<p class="admin__empty">No admin actions yet</p>`;
+      return;
+    }
+    log.slice(0, 30).forEach((entry) => {
+      const row = el("div", "admin__presence-row");
+      row.innerHTML = `
+        <div class="admin__presence-info">
+          <span class="admin__presence-name">${entry.action}${entry.detail ? " — " + entry.detail : ""}</span>
+          <span class="admin__presence-meta">${new Date(entry.timestamp).toLocaleString()}</span>
+        </div>`;
+      adminAuditList.appendChild(row);
+    });
+  }
+
+  function onExportCsv() {
+    if (!lastRosterPeople.length) return;
+    const headers = ["Name", "Aliases", "Suspended", "ExpiresAt", "LastSeen", "SessionCount", "TotalSessionMinutes", "TotalViewMinutes", "LoginCount", "UnauthorizedCount"];
+    const rows = lastRosterPeople.map((p) => [
+      p.name,
+      (p.aliases || []).join("; "),
+      p.suspended ? "yes" : "no",
+      p.expiresAt ? new Date(p.expiresAt).toISOString().slice(0, 10) : "",
+      p.lastSeen ? new Date(p.lastSeen).toISOString() : "",
+      p.sessionCount,
+      Math.round((p.totalSessionSeconds || 0) / 60),
+      Math.round((p.totalViewSeconds || 0) / 60),
+      p.loginCount,
+      p.unauthorizedCount
+    ]);
+    const csv = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `roster-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   async function renderAdminPresence() {
@@ -1610,7 +1761,8 @@
         <div class="admin__roster-stat">${totalMins}m total</div>
         <div class="admin__roster-stat">${p.sessionCount} session${p.sessionCount === 1 ? "" : "s"}</div>
         <div class="admin__roster-stat admin__roster-lastseen">Last seen ${lastSeen}</div>
-        <button type="button" class="admin__presence-btn admin__presence-btn--danger" data-action="suspend">${p.suspended ? "Unsuspend" : "Suspend"}</button>`;
+        <button type="button" class="admin__presence-btn admin__presence-btn--danger" data-action="suspend">${p.suspended ? "Unsuspend" : "Suspend"}</button>
+        <button type="button" class="admin__presence-btn" data-action="expiry">${p.expiresAt ? "Expires " + new Date(p.expiresAt).toLocaleDateString() : "Set expiry"}</button>`;
 
       row.addEventListener("click", () => openAdminDetail(p.name));
       row.addEventListener("keydown", (e) => { if (e.key === "Enter") openAdminDetail(p.name); });
@@ -1624,6 +1776,10 @@
       row.querySelector('[data-action="suspend"]').addEventListener("click", (e) => {
         e.stopPropagation();
         onToggleSuspend(p.name, !!p.suspended);
+      });
+      row.querySelector('[data-action="expiry"]').addEventListener("click", (e) => {
+        e.stopPropagation();
+        onSetExpiry(p.name, p.expiresAt);
       });
 
       adminRosterList.appendChild(row);
