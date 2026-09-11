@@ -314,7 +314,7 @@ const SITE_CONFIG = {
             { name: "03. Chemical Kinetics Formulas", path: "chemistry/Chemistry Formulas/3.Chemical Kinetics Formulas.pdf" },
             { name: "04. D & F Block Elements Formulas", path: "chemistry/Chemistry Formulas/4.D & F Block Elements Formulas.pdf" },
             { name: "05. Coordination Compounds Formulas", path: "chemistry/Chemistry Formulas/5.Coordination Compounds Formulas.pdf" },
-            { name: "06. Haloalkanes & Haloarenes Formulas", path: "chemistry/Chemistry Formulas/6.Haloalkanes & Haloarenes Formulas.pdf" },
+            { name: "06. Haloalkanes & Haloarenes Formulas", path: "chemistry/Chemistry Formulas/6.Haloalkenes & Haloarenes Formulas.pdf" },
             { name: "07. Alcohols, Phenols & Ethers Formulas", path: "chemistry/Chemistry Formulas/7.Alcohols,Phenols & Ethers Formulas.pdf" },
             { name: "08. Aldehydes, Ketones & Carboxylic Acids Formulas", path: "chemistry/Chemistry Formulas/8.Aldehydes,Ketones & Carboxylic Acids Formulas.pdf" },
             { name: "09. Organic Compounds Containing Nitrogen Formulas", path: "chemistry/Chemistry Formulas/9.Organic Compounds Containing Nitrogen Formulas.pdf" },
