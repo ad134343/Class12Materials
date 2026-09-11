@@ -193,6 +193,11 @@
             </section>
 
             <section class="admin__section">
+                <h2 class="admin__section-title">Blocked devices</h2>
+                <div id="adminBlockedDevicesList" class="admin__presence-list"></div>
+            </section>
+
+            <section class="admin__section">
                 <h2 class="admin__section-title">Pending approval</h2>
                 <div class="admin__toolbar">
                     <input type="text" id="adminAddNameInput" class="admin__toolbar-input" placeholder="Add a name directly…">
@@ -213,6 +218,9 @@
 
             <section class="admin__section">
                 <h2 class="admin__section-title">Admin action log</h2>
+                <div class="admin__toolbar">
+                    <button type="button" id="adminArchiveBtn" class="admin__nav-btn admin__nav-btn--ghost">Archive old log rows…</button>
+                </div>
                 <div id="adminAuditList" class="admin__presence-list"></div>
             </section>
 

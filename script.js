@@ -138,6 +138,8 @@
   const adminBroadcastBtn  = $("#adminBroadcastBtn");
   const adminExportBtn     = $("#adminExportBtn");
   const adminContentStatsList = $("#adminContentStatsList");
+  const adminArchiveBtn    = $("#adminArchiveBtn");
+  const adminBlockedDevicesList = $("#adminBlockedDevicesList");
 
   // ── State ──────────────────────────────────────────────
   let curView     = "home";
@@ -251,31 +253,43 @@
     // Live-approved names — added from the admin dashboard's approval
     // queue or "Add name" box, no redeploy needed. Checked in addition
     // to the static list above, never instead of it.
-    const liveHashes = await fetchLiveAccessHashes();
-    return liveHashes.includes(hash);
+    const remote = await fetchLoginCheck(name);
+    return remote.accessHashes.includes(hash);
   }
 
-  // Mirrors fetchBlockedDeviceIds below: pulled from the Apps Script
-  // backend's "AccessList" sheet, which the admin dashboard writes to
-  // directly (approveName). Fails open (empty list) on any network
-  // error — same philosophy as the rest of this file, a hiccup here
-  // should never lock out someone who's actually approved.
-  let cachedLiveAccess = null;
-  async function fetchLiveAccessHashes() {
-    if (cachedLiveAccess) return cachedLiveAccess;
+  // ── Consolidated remote login check ──────────────────────────────
+  // One request, cached for the rest of this page load, covering
+  // everything isSuspended/isAuthorized/isNameActive need from the
+  // server: the live device blocklist, live access list, live+expired
+  // suspended-name list, and whether this name is active elsewhere
+  // right now. This used to be 4 separate sequential fetches — each
+  // its own Apps Script cold-start — adding real, noticeable seconds
+  // to every login on a slow connection. Same data, same checks, just
+  // fetched together. Fails open (empty/false) on any network error,
+  // same philosophy as everything else here: a hiccup reaching the
+  // sheet should never lock out someone who's actually fine.
+  let cachedLoginCheck = null;
+  async function fetchLoginCheck(name) {
+    if (cachedLoginCheck) return cachedLoginCheck;
+    const fallback = { blockedDeviceIds: [], accessHashes: [], suspendedHashes: [], active: false };
     const endpoint = SITE_CONFIG.logging && SITE_CONFIG.logging.endpoint;
-    if (!endpoint || endpoint.indexOf("PASTE_YOUR") === 0) return [];
+    if (!endpoint || endpoint.indexOf("PASTE_YOUR") === 0) return fallback;
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 1500);
-      const res = await fetch(`${endpoint}?action=accessList`, { signal: controller.signal });
+      const timeout = setTimeout(() => controller.abort(), 2000);
+      const res = await fetch(`${endpoint}?action=loginCheck&name=${encodeURIComponent(name || "")}`, { signal: controller.signal });
       clearTimeout(timeout);
       const data = await res.json();
-      cachedLiveAccess = (data && data.accessHashes) || [];
+      cachedLoginCheck = (data && data.ok) ? {
+        blockedDeviceIds: data.blockedDeviceIds || [],
+        accessHashes: data.accessHashes || [],
+        suspendedHashes: data.suspendedHashes || [],
+        active: !!data.active
+      } : fallback;
     } catch {
-      cachedLiveAccess = [];
+      cachedLoginCheck = fallback;
     }
-    return cachedLiveAccess;
+    return cachedLoginCheck;
   }
 
   // Console helper for adding a new student later without re-editing
@@ -346,6 +360,52 @@
     return cachedDeviceId;
   }
 
+  // A human-readable guess at what device this is, purely for admin
+  // display next to the (opaque) device hash above — never used for
+  // matching/blocking itself. Best-effort, not exact:
+  //   - Android UAs often include the real model string (e.g.
+  //     "SM-G991B") right after the Android version — this shows up
+  //     when it's there.
+  //   - iPhones/iPads will only ever show as "iPhone"/"iPad" plus an
+  //     iOS version. Apple deliberately strips the exact model from
+  //     the user-agent string for privacy — there's no way to get a
+  //     more specific label than that from the browser.
+  //   - Desktop OSes and common browsers are detected from simple
+  //     substring checks, same limitation: whatever the UA reveals.
+  function parseDeviceLabel() {
+    const ua = navigator.userAgent || "";
+    let platform = "Unknown device";
+
+    const androidMatch = ua.match(/Android\s+([\d.]+);\s*([^;)]+)\)/);
+    if (androidMatch) {
+      platform = `Android ${androidMatch[1]} \u00B7 ${androidMatch[2].trim()}`;
+    } else if (/iPhone/.test(ua)) {
+      const v = ua.match(/OS (\d+)/);
+      platform = `iPhone \u00B7 iOS ${v ? v[1] : "?"}`;
+    } else if (/iPad/.test(ua)) {
+      const v = ua.match(/OS (\d+)/);
+      platform = `iPad \u00B7 iPadOS ${v ? v[1] : "?"}`;
+    } else if (/Windows/.test(ua)) {
+      platform = "Windows";
+    } else if (/Macintosh/.test(ua)) {
+      platform = "Mac";
+    } else if (/Linux/.test(ua)) {
+      platform = "Linux";
+    }
+
+    let browser = "";
+    if (/Edg\//.test(ua)) browser = "Edge";
+    else if (/Chrome\//.test(ua)) browser = "Chrome";
+    else if (/CriOS/.test(ua)) browser = "Chrome";
+    else if (/Firefox\//.test(ua)) browser = "Firefox";
+    else if (/Safari\//.test(ua)) browser = "Safari";
+
+    // Strip characters that would break the " || key:value" trace
+    // format this gets embedded into (see the trace string below).
+    const label = browser ? `${platform} \u00B7 ${browser}` : platform;
+    return label.replace(/[|:]/g, "").trim();
+  }
+
   // Console helper: open dev tools on the suspect's phone (or ask them
   // to, or just check the log sheet after their next attempt — see
   // logEvent below, which now records this on every login try) and
@@ -378,32 +438,6 @@
     return cachedIp;
   }
 
-  // ── Remote device blocklist ──────────────────────────────
-  // Pulled from the Apps Script backend, which auto-adds a device
-  // fingerprint here the moment that device gets blocked once by name
-  // (see logEvent below and the Apps Script's doPost). This is what
-  // makes the block automatic — you don't have to open the sheet and
-  // paste anything into config.js yourself. Fails open (empty list)
-  // on any network error, same philosophy as getClientIp: a hiccup
-  // fetching this should never lock out a legitimate student.
-  let cachedRemoteBlocked = null;
-  async function fetchBlockedDeviceIds() {
-    if (cachedRemoteBlocked) return cachedRemoteBlocked;
-    const endpoint = SITE_CONFIG.logging && SITE_CONFIG.logging.endpoint;
-    if (!endpoint || endpoint.indexOf("PASTE_YOUR") === 0) return [];
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 1500);
-      const res = await fetch(`${endpoint}?action=blockedDevices`, { signal: controller.signal });
-      clearTimeout(timeout);
-      const data = await res.json();
-      cachedRemoteBlocked = (data && data.blockedDevices) || [];
-    } catch {
-      cachedRemoteBlocked = [];
-    }
-    return cachedRemoteBlocked;
-  }
-
   // ── Suspension check ─────────────────────────────────────
   // Checked BEFORE the normal accessList lookup. Any one of four
   // signals is enough to block: the typed name, this browser's device
@@ -424,16 +458,15 @@
 
     if (Array.isArray(s.deviceIds) && s.deviceIds.includes(deviceId)) return true;
 
-    const remoteBlocked = await fetchBlockedDeviceIds();
-    if (remoteBlocked.includes(deviceId)) return true;
+    const remote = await fetchLoginCheck(name);
+    if (remote.blockedDeviceIds.includes(deviceId)) return true;
 
     // Live-suspended names — added from the admin dashboard's Suspend
     // button, which also cascades to every linked alias and device.
     // Checked in addition to the static config.js list above.
     if (name) {
-      const remoteSuspended = await fetchSuspendedHashes();
       const hash = await hashName(name);
-      if (remoteSuspended.includes(hash)) return true;
+      if (remote.suspendedHashes.includes(hash)) return true;
     }
 
     if (Array.isArray(s.ips) && s.ips.length) {
@@ -444,44 +477,14 @@
     return false;
   }
 
-  // Mirrors fetchLiveAccessHashes above, for the Apps Script backend's
-  // "SuspendedNames" sheet.
-  let cachedLiveSuspended = null;
-  async function fetchSuspendedHashes() {
-    if (cachedLiveSuspended) return cachedLiveSuspended;
-    const endpoint = SITE_CONFIG.logging && SITE_CONFIG.logging.endpoint;
-    if (!endpoint || endpoint.indexOf("PASTE_YOUR") === 0) return [];
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 1500);
-      const res = await fetch(`${endpoint}?action=suspendedNames`, { signal: controller.signal });
-      clearTimeout(timeout);
-      const data = await res.json();
-      cachedLiveSuspended = (data && data.suspendedHashes) || [];
-    } catch {
-      cachedLiveSuspended = [];
-    }
-    return cachedLiveSuspended;
-  }
-
   // ── Concurrent-session lock ───────────────────────────────
   // True if this name (or any alias linked to it from the admin
   // dashboard's merge tool) is already active in another session
   // right now. Fails open (false) on any network error — a hiccup
   // here should never lock out a legitimate solo login.
   async function isNameActive(name) {
-    const endpoint = SITE_CONFIG.logging && SITE_CONFIG.logging.endpoint;
-    if (!endpoint || endpoint.indexOf("PASTE_YOUR") === 0) return false;
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 1500);
-      const res = await fetch(`${endpoint}?action=nameActive&name=${encodeURIComponent(name)}`, { signal: controller.signal });
-      clearTimeout(timeout);
-      const data = await res.json();
-      return !!(data && data.active);
-    } catch {
-      return false;
-    }
+    const remote = await fetchLoginCheck(name);
+    return remote.active;
   }
 
   // ── Font-load gate ───────────────────────────────────────
@@ -631,6 +634,7 @@
     adminMergeBtn.addEventListener("click", onMergeSelected);
     adminBroadcastBtn.addEventListener("click", onBroadcastMessage);
     adminExportBtn.addEventListener("click", onExportCsv);
+    adminArchiveBtn.addEventListener("click", onArchiveOldLogs);
     adminDetailClose.addEventListener("click", closeAdminDetail);
     adminDetailOverlay.addEventListener("click", closeAdminDetail);
 
@@ -723,17 +727,18 @@
       // it's safe now since that's being redeployed anyway.
       //
       // All three network-bound lookups fire together instead of one
-      // after another — isSuspended() below used to trigger its own
-      // separate blocklist fetch AFTER this line finished, so on a
-      // slow connection the two waits stacked (up to ~5s total).
-      // Prefetching fetchBlockedDeviceIds() here means isSuspended()
-      // just reads the already-resolved, cached result.
+      // after another, AND the remote lookup itself is now a single
+      // consolidated call (fetchLoginCheck) instead of 4 separate
+      // ones — see its comment above. Prefetching it here means
+      // isSuspended()/isAuthorized()/isNameActive() below just read
+      // the already-resolved, cached result instead of each firing
+      // their own request.
       const [deviceId, ip] = await Promise.all([
         getDeviceId(),
         getClientIp(),
-        fetchBlockedDeviceIds()
+        fetchLoginCheck(name)
       ]);
-      const trace = `${location.href} || device:${deviceId} || ip:${ip || "unknown"}`;
+      const trace = `${location.href} || device:${deviceId} || ip:${ip || "unknown"} || label:${parseDeviceLabel()}`;
 
       // Harassment/abuse in the name field itself (e.g. someone typing
       // slurs or taunts instead of a real name) gets the device
@@ -1550,17 +1555,67 @@
   let lastRosterPeople = [];
   let selectedForMerge = new Set();
 
-  function refreshAdmin() {
-    renderAdminPresence();
-    renderApprovalQueue();
-    renderAdminRoster();
-    renderFlags();
-    renderAuditLog();
-    renderContentStats();
+  async function renderBlockedDevices(preloaded) {
+    const data = preloaded ? { ok: true, devices: preloaded } : await adminFetch("blockedDevicesFull");
+    if (!data) {
+      adminBlockedDevicesList.innerHTML = `<p class="admin__empty">Couldn't reach the sheet — check the admin key.</p>`;
+      return;
+    }
+    const devices = data.devices || [];
+    adminBlockedDevicesList.innerHTML = "";
+    if (!devices.length) {
+      adminBlockedDevicesList.innerHTML = `<p class="admin__empty">Nothing blocked</p>`;
+      return;
+    }
+    devices.forEach((d) => {
+      const when = d.firstBlockedAt ? new Date(d.firstBlockedAt).toLocaleString() : "";
+      const row = el("div", "admin__presence-row");
+      row.innerHTML = `
+        <div class="admin__presence-info">
+          <span class="admin__presence-name">${d.label || "Unknown device"}</span>
+          <span class="admin__presence-meta">${d.deviceId.slice(0, 12)}\u2026 \u00B7 blocked ${when}</span>
+        </div>
+        <div class="admin__presence-actions">
+          <button type="button" class="admin__presence-btn" data-action="unblock">Unblock</button>
+        </div>`;
+      row.querySelector('[data-action="unblock"]').addEventListener("click", async () => {
+        if (!confirm(`Unblock this device? Anyone using it will be able to log in again (under any non-suspended name).`)) return;
+        await adminFetch("unblockDevice", { deviceId: d.deviceId });
+        renderBlockedDevices();
+      });
+      adminBlockedDevicesList.appendChild(row);
+    });
   }
 
-  async function renderContentStats() {
-    const data = await adminFetch("contentStats");
+  async function refreshAdmin() {
+    // One request instead of six — the backend now reads the Log
+    // sheet once and returns everything the dashboard needs together.
+    // Falls back to the old six-separate-calls behavior automatically
+    // if adminDashboard isn't reachable for some reason (each render
+    // function still knows how to fetch its own data when called with
+    // no argument).
+    const data = await adminFetch("adminDashboard");
+    if (!data) {
+      renderAdminPresence();
+      renderApprovalQueue();
+      renderAdminRoster();
+      renderFlags();
+      renderAuditLog();
+      renderContentStats();
+      renderBlockedDevices();
+      return;
+    }
+    renderAdminPresence(data.online);
+    renderApprovalQueue(data.queue);
+    renderAdminRoster(data.people);
+    renderFlags(data.flags);
+    renderAuditLog(data.log);
+    renderContentStats(data.stats);
+    renderBlockedDevices(data.devices);
+  }
+
+  async function renderContentStats(preloaded) {
+    const data = preloaded ? { ok: true, stats: preloaded } : await adminFetch("contentStats");
     if (!data) return;
     const stats = (data.stats || []).slice(0, 15);
     adminContentStatsList.innerHTML = "";
@@ -1580,8 +1635,8 @@
     });
   }
 
-  async function renderApprovalQueue() {
-    const data = await adminFetch("unauthorizedQueue");
+  async function renderApprovalQueue(preloaded) {
+    const data = preloaded ? { ok: true, queue: preloaded } : await adminFetch("unauthorizedQueue");
     const queue = (data && data.queue) || [];
     adminApprovalList.innerHTML = "";
 
@@ -1654,8 +1709,8 @@
     renderAdminRoster();
   }
 
-  async function renderFlags() {
-    const data = await adminFetch("flags");
+  async function renderFlags(preloaded) {
+    const data = preloaded ? { ok: true, flags: preloaded } : await adminFetch("flags");
     if (!data) {
       adminFlagsList.innerHTML = `<p class="admin__empty">Couldn't reach the sheet — check the admin key.</p>`;
       return;
@@ -1694,6 +1749,18 @@
     });
   }
 
+  async function onArchiveOldLogs() {
+    const daysStr = prompt("Move log rows older than how many days into a separate archive tab? (nothing is deleted, just moved out of the live sheet)", "90");
+    if (daysStr === null) return;
+    const days = Number(daysStr);
+    if (!days || days < 1) { alert("Enter a number of days."); return; }
+    if (!confirm(`Archive everything older than ${days} days? Roster totals will drop for anyone whose activity is entirely in that window — their history moves to a LogArchive tab, it isn't deleted.`)) return;
+    const data = await adminFetch("archiveOldLogs", { days });
+    if (!data) { alert("Couldn't reach the sheet."); return; }
+    alert(`Archived ${data.result.archived} rows, ${data.result.kept} left in the live sheet.`);
+    refreshAdmin();
+  }
+
   async function onBroadcastMessage() {
     const message = prompt("Message to send to everyone online right now:");
     if (!message || !message.trim()) return;
@@ -1703,8 +1770,8 @@
     alert(`Sent to ${online.length} online session${online.length === 1 ? "" : "s"}.`);
   }
 
-  async function renderAuditLog() {
-    const data = await adminFetch("adminActionLog");
+  async function renderAuditLog(preloaded) {
+    const data = preloaded ? { ok: true, log: preloaded } : await adminFetch("adminActionLog");
     if (!data) return;
     const log = data.log || [];
     adminAuditList.innerHTML = "";
@@ -1750,8 +1817,8 @@
     URL.revokeObjectURL(url);
   }
 
-  async function renderAdminPresence() {
-    const data = await adminFetch("presenceLive");
+  async function renderAdminPresence(preloaded) {
+    const data = preloaded ? { ok: true, online: preloaded } : await adminFetch("presenceLive");
     const online = (data && data.online) || [];
     adminPresenceList.innerHTML = "";
 
@@ -1802,8 +1869,10 @@
     await adminFetch("forceLogout", { sessionId });
   }
 
-  async function renderAdminRoster(skipFetch) {
-    if (!skipFetch) {
+  async function renderAdminRoster(preloadedOrSkip) {
+    if (Array.isArray(preloadedOrSkip)) {
+      lastRosterPeople = preloadedOrSkip;
+    } else if (!preloadedOrSkip) {
       adminRosterList.innerHTML = `<p class="admin__loading">Loading…</p>`;
       const data = await adminFetch("adminSummary");
       if (!data) {
@@ -1812,6 +1881,8 @@
       }
       lastRosterPeople = data.people || [];
     }
+    // preloadedOrSkip === true (search-box re-filter): fall through
+    // and reuse whatever's already in lastRosterPeople, no fetch.
 
     const query = adminRosterSearch.value.trim().toLowerCase();
     const people = query
