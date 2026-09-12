@@ -47,7 +47,7 @@ const SITE_CONFIG = {
   //  the logging endpoint above; the token is what actually gates
   //  access, not the URL being unlisted.
   pdfWorker: {
-    url: "PASTE_YOUR_WORKER_URL_HERE",
+    url: "https://class12-pdf-gate.merchantadnan052.workers.dev",
   },
 
   // ── Admin Dashboard ───────────────────────────────────────────
