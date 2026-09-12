@@ -35,6 +35,14 @@
   // `.promise` — so this returns a task-shaped object immediately,
   // and wires the real pdf.js task's progress through to it once the
   // token is ready and the real load has actually started.
+  //
+  // If the load fails (bad token, Worker/Backblaze hiccup, momentary
+  // network issue...), the failed entry used to stay in this Map for
+  // the rest of the browser session — so a transient failure looked
+  // permanent: every future click on that same file replayed the same
+  // rejected promise instead of trying again. Now a failure evicts its
+  // own cache entry, so the next click on that file starts a genuinely
+  // fresh load.
   function makePdfLoadingTask(path) {
     const task = { onProgress: null };
     task.promise = ensurePdfToken().then((token) => {
@@ -42,6 +50,9 @@
       const realTask = pdfjsLib.getDocument(pdfWorkerUrl(path, token));
       realTask.onProgress = (p) => { if (task.onProgress) task.onProgress(p); };
       return realTask.promise;
+    }).catch((err) => {
+      if (pdfLoadingTasks.get(path) === task) pdfLoadingTasks.delete(path);
+      throw err;
     });
     return task;
   }
