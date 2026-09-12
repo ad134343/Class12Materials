@@ -30,6 +30,26 @@ const SITE_CONFIG = {
     endpoint: "https://script.google.com/macros/s/AKfycbyDtxYLc_dwqKdermC8caK79OG9K4lkIsHA7_XNoFVQDxLX7dmKDp-tCJxOcLOwTJ_7/exec",
   },
 
+  // ── PDF Delivery (Cloudflare Worker → Backblaze B2) ──────────
+  //  PDFs are no longer served as static files from this repo — the
+  //  `path` values below (e.g. "physics/Chapter Notes/Ch 1.pdf") are
+  //  now just labels the Worker uses to look the file up in the
+  //  private B2 bucket. The browser never fetches a file directly;
+  //  it asks Apps Script for a short-lived token (see
+  //  google-apps-script.gs's getPdfToken addition), then fetches
+  //  ${url}?file=<path>&token=<token> from the Worker, which only
+  //  returns bytes if that token is genuine and unexpired.
+  //
+  //  Set this to your deployed Worker's URL, e.g.
+  //  "https://class12-pdf-gate.YOURSUBDOMAIN.workers.dev"
+  //  (Workers dashboard → your worker → the URL shown at the top).
+  //  This is not a secret — it's fine as plain text here, same as
+  //  the logging endpoint above; the token is what actually gates
+  //  access, not the URL being unlisted.
+  pdfWorker: {
+    url: "PASTE_YOUR_WORKER_URL_HERE",
+  },
+
   // ── Admin Dashboard ───────────────────────────────────────────
   //  Typing your secret phrase into the normal name box (instead of
   //  a real name) opens the admin dashboard instead of the student

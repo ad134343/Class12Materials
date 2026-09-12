@@ -22,11 +22,28 @@
   // starting over. Session-scoped only — closing the tab clears it,
   // same as browser memory generally.
   const pdfLoadingTasks = new Map();
-  function getPdfLoadingTask(encodedPath) {
-    if (!pdfLoadingTasks.has(encodedPath)) {
-      pdfLoadingTasks.set(encodedPath, pdfjsLib.getDocument(encodedPath));
+  function getPdfLoadingTask(path) {
+    if (!pdfLoadingTasks.has(path)) {
+      pdfLoadingTasks.set(path, makePdfLoadingTask(path));
     }
-    return pdfLoadingTasks.get(encodedPath);
+    return pdfLoadingTasks.get(path);
+  }
+
+  // Building the request URL now needs an async token fetch first
+  // (see ensurePdfToken above), but existing callers set `.onProgress`
+  // synchronously right after calling getPdfLoadingTask and then read
+  // `.promise` — so this returns a task-shaped object immediately,
+  // and wires the real pdf.js task's progress through to it once the
+  // token is ready and the real load has actually started.
+  function makePdfLoadingTask(path) {
+    const task = { onProgress: null };
+    task.promise = ensurePdfToken().then((token) => {
+      if (!token) throw new Error("no_pdf_token");
+      const realTask = pdfjsLib.getDocument(pdfWorkerUrl(path, token));
+      realTask.onProgress = (p) => { if (task.onProgress) task.onProgress(p); };
+      return realTask.promise;
+    });
+    return task;
   }
 
   // ── Thumbnail lazy-load + concurrency throttle ─────────
@@ -180,6 +197,62 @@
   // ── Helpers ────────────────────────────────────────────
   function encodePath(p) {
     return p.split("/").map((s) => encodeURIComponent(s)).join("/");
+  }
+
+  // ── PDF access token (Apps Script → Cloudflare Worker) ──────────
+  // PDFs are no longer fetched as static files from this repo. Every
+  // open goes through the Worker, which only streams file bytes back
+  // if it's handed a genuine, unexpired token — minted server-side by
+  // Apps Script's getPdfToken action, which re-checks (fresh, live)
+  // that this name is still on the access list and not suspended.
+  // That's the actual security decision; this file just carries the
+  // token along. Cached in memory and refreshed a few minutes before
+  // its ~20-minute expiry so opening a PDF mid-session never has to
+  // wait on a fresh token fetch.
+  let pdfToken = null;
+  let pdfTokenExpiresAt = 0;
+  let pdfTokenPromise = null;
+
+  async function fetchPdfToken() {
+    const endpoint = SITE_CONFIG.logging && SITE_CONFIG.logging.endpoint;
+    const workerUrl = SITE_CONFIG.pdfWorker && SITE_CONFIG.pdfWorker.url;
+    if (!endpoint || endpoint.indexOf("PASTE_YOUR") === 0) return null;
+    if (!workerUrl || workerUrl.indexOf("PASTE_YOUR") === 0) return null;
+    if (!sessionId || !currentName) return null;
+    try {
+      const url = `${endpoint}?action=getPdfToken&name=${encodeURIComponent(currentName)}&sessionId=${encodeURIComponent(sessionId)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data && data.ok && data.token) {
+        pdfToken = data.token;
+        // Real token is good for 20 minutes (see mintPdfToken in the
+        // Apps Script) — refresh a few minutes early so we're never
+        // caught handing out a token that expires mid-fetch.
+        pdfTokenExpiresAt = Date.now() + 17 * 60 * 1000;
+        return pdfToken;
+      }
+    } catch {
+      // network hiccup — fall through and return null; caller retries
+      // next time a PDF is opened.
+    }
+    return null;
+  }
+
+  // Returns a usable token, fetching a new one only if there's no
+  // cached token or the cached one is due to expire soon. Concurrent
+  // callers (e.g. several thumbnails loading at once) share a single
+  // in-flight fetch instead of each firing their own request.
+  function ensurePdfToken() {
+    if (pdfToken && Date.now() < pdfTokenExpiresAt) return Promise.resolve(pdfToken);
+    if (!pdfTokenPromise) {
+      pdfTokenPromise = fetchPdfToken().finally(() => { pdfTokenPromise = null; });
+    }
+    return pdfTokenPromise;
+  }
+
+  function pdfWorkerUrl(path, token) {
+    const base = SITE_CONFIG.pdfWorker.url;
+    return `${base}?file=${encodeURIComponent(path)}&token=${encodeURIComponent(token)}`;
   }
 
   // Case/whitespace-insensitive match against the access list —
@@ -840,6 +913,7 @@
     greeting.textContent = `Hi, ${name}`;
     logEvent("session_start", name, "");
     startHeartbeat();
+    ensurePdfToken(); // kick off in the background — don't make the very first thumbnail wait on it
     nav("home");
   }
 
@@ -1257,8 +1331,7 @@
       return Promise.resolve();
     }
 
-    const encoded = encodePath(path);
-    const loading = getPdfLoadingTask(encoded);
+    const loading = getPdfLoadingTask(path);
 
     // Only wire progress onto the skeleton if nothing else (e.g. an
     // already-open viewer for this same file) has claimed the task's
@@ -1363,7 +1436,6 @@
 
   function openViewer(path, name) {
     endCurrentView(); // in case a different PDF was already open — close out its timer first
-    const encoded = encodePath(path);
     viewerName.textContent = name;
     viewer.classList.remove("hidden");
     document.body.style.overflow = "hidden";
@@ -1415,7 +1487,7 @@
     // started (see getPdfLoadingTask) — for a large scanned PDF whose
     // thumbnail has already rendered, this resolves instantly instead
     // of re-fetching the whole file a second time.
-    const task = getPdfLoadingTask(encoded);
+    const task = getPdfLoadingTask(path);
     task.onProgress = (p) => {
       if (myToken !== viewerLoadToken) return;
       if (p.total) {
