@@ -136,15 +136,14 @@ const SITE_CONFIG = {
   suspended: {
     enabled: true,
     hashes: [
-      "bf56b85f4777e1fb2e50955cb60b12937292c456d9e99e4f0f5c186ac84d4a1e", // Divyansh Mishra
-      "12cc1d85df8f176c723d06a0ec39439f357bf6b27d5ee5d8c2e0239c0b96f50b", // Divyansh
+      // empty — no static suspensions right now. Suspending someone
+      // going forward is done from the admin dashboard's Suspend
+      // button, which is live and needs no redeploy. Only add
+      // something here again if you specifically want a suspension
+      // baked into the deployed site itself.
     ],
-    deviceIds: [
-      "f82ca29988dd2decdb99f8903283966d6ad163b81787ed1bd49f7acfc60effe8",
-    ],
-    ips: [
-      "103.201.146.230", // expect this to change if he's on mobile data
-    ],
+    deviceIds: [],
+    ips: [],
     message: "You have been suspended from using this website due to inappropriate behaviour.",
   },
 

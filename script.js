@@ -99,6 +99,7 @@
 
   // ── DOM refs ───────────────────────────────────────────
   const $ = (s) => document.querySelector(s);
+  const $$ = (s, root) => Array.from((root || document).querySelectorAll(s));
   const gate        = $("#gate");
   const nameForm    = $("#nameForm");
   const nameInput   = $("#nameInput");
@@ -108,6 +109,8 @@
   const logoutBtn   = $("#logoutBtn");
   const breadcrumb  = $("#breadcrumb");
   const content     = $("#content");
+  const searchInput = $("#searchInput");
+  const studyTimeEl = $("#studyTime");
   const viewer      = $("#viewer");
   const viewerName  = $("#viewerName");
   const viewerClose = $("#viewerClose");
@@ -140,6 +143,13 @@
   const adminContentStatsList = $("#adminContentStatsList");
   const adminArchiveBtn    = $("#adminArchiveBtn");
   const adminBlockedDevicesList = $("#adminBlockedDevicesList");
+  const adminTabs = $("#adminTabs");
+  const adminSummaryStrip = $("#adminSummaryStrip");
+  const toastStack = $("#toastStack");
+  const confirmOverlay = $("#confirmOverlay");
+  const confirmMessage = $("#confirmMessage");
+  const confirmCancelBtn = $("#confirmCancelBtn");
+  const confirmOkBtn = $("#confirmOkBtn");
 
   // ── State ──────────────────────────────────────────────
   let curView     = "home";
@@ -603,6 +613,7 @@
     });
     homeBtn.addEventListener("click", () => nav("home"));
     logoutBtn.addEventListener("click", () => performLogout("logout"));
+    if (searchInput) searchInput.addEventListener("input", () => render());
     document.addEventListener("visibilitychange", () => {
       if (!currentViewId) return;
       if (document.hidden) {
@@ -635,6 +646,10 @@
     adminBroadcastBtn.addEventListener("click", onBroadcastMessage);
     adminExportBtn.addEventListener("click", onExportCsv);
     adminArchiveBtn.addEventListener("click", onArchiveOldLogs);
+    adminTabs.addEventListener("click", (e) => {
+      const btn = e.target.closest(".admin__tab");
+      if (btn) switchAdminTab(btn.dataset.tab);
+    });
     adminDetailClose.addEventListener("click", closeAdminDetail);
     adminDetailOverlay.addEventListener("click", closeAdminDetail);
 
@@ -849,6 +864,32 @@
       : (curFolder ? curFolder.name : curSubject ? curSubject.name : "home");
     logEvent("heartbeat", currentName, where);
     checkCommands();
+    refreshStudyTime();
+  }
+
+  // Refetches "studied Xm today" and updates the nav display. Called
+  // once right after login and then again on every heartbeat (~45s),
+  // so it stays current through a session without hammering the
+  // backend on every page interaction. Scoped by sessionId server-
+  // side (see getTodayStatsForSession) — nothing here can be used to
+  // read anyone else's study time.
+  async function refreshStudyTime() {
+    if (!sessionId || !studyTimeEl) return;
+    const endpoint = SITE_CONFIG.logging && SITE_CONFIG.logging.endpoint;
+    if (!endpoint || endpoint.indexOf("PASTE_YOUR") === 0) return;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2000);
+      const res = await fetch(`${endpoint}?action=todayStats&sessionId=${encodeURIComponent(sessionId)}`, { signal: controller.signal });
+      clearTimeout(timeout);
+      const data = await res.json();
+      if (data && data.ok) {
+        const mins = Math.round(data.todaySeconds / 60);
+        studyTimeEl.textContent = mins > 0 ? `Studied ${mins}m today` : "";
+      }
+    } catch {
+      // silent — this is a nice-to-have, not worth surfacing an error for
+    }
   }
 
   // Heartbeats go out via a no-cors POST (see logEvent above), which
@@ -1015,6 +1056,8 @@
   // ── Render ─────────────────────────────────────────────
   function render() {
     content.innerHTML = "";
+    const query = searchInput ? searchInput.value.trim() : "";
+    if (query) { renderSearchResults(query); return; }
     switch (curView) {
       case "home":      renderSubjects(); break;
       case "subject":   renderFolders();  break;
@@ -1022,8 +1065,80 @@
     }
   }
 
+  // Flat search across every subject/folder/file — matches on the
+  // file name, case-insensitive substring. Doesn't touch curView or
+  // the breadcrumb, so clearing the box drops you back exactly where
+  // you were, not back at Home.
+  function renderSearchResults(query) {
+    const q = query.toLowerCase();
+    const matches = [];
+    SITE_CONFIG.subjects.forEach((s) => {
+      s.subfolders.forEach((f) => {
+        f.files.forEach((file) => {
+          if (file.name.toLowerCase().includes(q)) {
+            matches.push({ file, subject: s, folder: f });
+          }
+        });
+      });
+    });
+
+    const label = el("p", "section-label", `${matches.length} result${matches.length === 1 ? "" : "s"} for "${query}"`);
+
+    if (!matches.length) {
+      const empty = el("div", "empty fade-up");
+      empty.innerHTML = `
+        <div class="empty__icon">${ICONS.tray}</div>
+        <p class="empty__title">Nothing matches "${query}"</p>
+        <p class="empty__sub">Try a shorter word, or check the spelling</p>`;
+      content.append(label, empty);
+      return;
+    }
+
+    const grid = el("div", "files stagger");
+    matches.forEach(({ file, subject, folder }) => {
+      const card = el("div", "file-card fade-up");
+      card.tabIndex = 0;
+
+      const preview = el("div", "file-card__preview");
+      const skeleton = el("div", "file-card__skeleton");
+      skeleton.innerHTML = `${ICONS.doc}<span class="file-card__skeleton-text">Loading preview…</span>`;
+      preview.appendChild(skeleton);
+      const canvas = document.createElement("canvas");
+      canvas.style.display = "none";
+      preview.appendChild(canvas);
+      observeThumbnail(preview, file.path, canvas, skeleton);
+
+      card.addEventListener("click", () => openViewer(file.path, file.name));
+      card.addEventListener("keydown", (e) => { if (e.key === "Enter") openViewer(file.path, file.name); });
+
+      const info = el("div", "file-card__info");
+      const nameP = el("p", "file-card__name");
+      nameP.textContent = file.name;
+      const typeP = el("p", "file-card__type", `${subject.name} · ${folder.name}`);
+      info.append(nameP, typeP);
+
+      card.append(preview, info);
+      grid.appendChild(card);
+    });
+
+    content.append(label, grid);
+  }
+
   // ── Subjects ───────────────────────────────────────────
   function renderSubjects() {
+    const recent = getRecentFiles();
+    if (recent.length) {
+      const rLabel = el("p", "section-label", "Continue where you left off");
+      const rRow = el("div", "recent-row stagger");
+      recent.forEach((r) => {
+        const chip = el("button", "recent-chip fade-up");
+        chip.innerHTML = `${ICONS.doc}<span class="recent-chip__name">${r.name}</span>`;
+        chip.addEventListener("click", () => openViewer(r.path, r.name));
+        rRow.appendChild(chip);
+      });
+      content.append(rLabel, rRow);
+    }
+
     const label = el("p", "section-label", "Select a subject");
     const grid = el("div", "subjects stagger");
 
@@ -1221,6 +1336,31 @@
     viewer.style.height = `${vv.height}px`;
   }
 
+  // ── Recently viewed (per-browser, scoped to this name) ──────────
+  // Plain localStorage, not synced anywhere — purely a personal
+  // convenience for "what was I just reading", so there's no reason
+  // for it to touch the network or the Log sheet at all.
+  function recentFilesKey() {
+    return `c12_recent_${normalizeName(currentName || "")}`;
+  }
+  function getRecentFiles() {
+    try {
+      return JSON.parse(localStorage.getItem(recentFilesKey()) || "[]");
+    } catch {
+      return [];
+    }
+  }
+  function addRecentFile(path, name) {
+    if (!currentName) return;
+    try {
+      const list = getRecentFiles().filter((r) => r.path !== path);
+      list.unshift({ path, name, ts: Date.now() });
+      localStorage.setItem(recentFilesKey(), JSON.stringify(list.slice(0, 5)));
+    } catch {
+      // localStorage unavailable (private browsing, quota, etc.) — fine to just skip
+    }
+  }
+
   function openViewer(path, name) {
     endCurrentView(); // in case a different PDF was already open — close out its timer first
     const encoded = encodePath(path);
@@ -1233,6 +1373,7 @@
     currentViewActiveMs = 0;
     currentViewResumedAt = document.hidden ? null : Date.now();
     logEvent("view", currentName, name, undefined, { viewId: currentViewId });
+    addRecentFile(path, name);
 
     viewerPages.innerHTML = "";
     currentPdf = null;
@@ -1555,6 +1696,60 @@
   let lastRosterPeople = [];
   let selectedForMerge = new Set();
 
+  // ── Toast + confirm (replaces browser alert()/confirm()) ────────
+  // Native alert()/confirm() are functional but visually jarring —
+  // they look nothing like the rest of this site and interrupt
+  // rather than fit into the page. These are drop-in equivalents:
+  // showToast for a fire-and-forget message, showConfirm returning a
+  // Promise<boolean> so call sites read almost the same as before
+  // (just add "await" and drop the negation).
+  function showToast(message, isError) {
+    const toast = el(`div`, `toast${isError ? " toast--error" : ""}`, message);
+    toastStack.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+  }
+
+  function showConfirm(message) {
+    return new Promise((resolve) => {
+      confirmMessage.textContent = message;
+      confirmOverlay.classList.remove("hidden");
+      const cleanup = (result) => {
+        confirmOverlay.classList.add("hidden");
+        confirmOkBtn.removeEventListener("click", onOk);
+        confirmCancelBtn.removeEventListener("click", onCancel);
+        resolve(result);
+      };
+      const onOk = () => cleanup(true);
+      const onCancel = () => cleanup(false);
+      confirmOkBtn.addEventListener("click", onOk);
+      confirmCancelBtn.addEventListener("click", onCancel);
+    });
+  }
+
+  // ── Tabs ──────────────────────────────────────────────────────
+  function switchAdminTab(tabName) {
+    $$(".admin__tab", adminTabs).forEach((btn) => {
+      btn.classList.toggle("admin__tab--active", btn.dataset.tab === tabName);
+    });
+    $$(".admin__tab-panel").forEach((panel) => {
+      panel.classList.toggle("admin__tab-panel--active", panel.dataset.panel === tabName);
+    });
+  }
+
+  function renderSummaryStrip(online, flags, queue) {
+    const flagCount = (flags.deviceCycling || []).length + (flags.rapidRepeat || []).length + (flags.bulkView || []).length;
+    const cards = [
+      { num: online.length, label: "Online now" },
+      { num: flagCount, label: "Flagged", alert: flagCount > 0 },
+      { num: queue.length, label: "Pending approval", alert: queue.length > 0 }
+    ];
+    adminSummaryStrip.innerHTML = cards.map((c) => `
+      <div class="admin__summary-card${c.alert ? " admin__summary-card--alert" : ""}">
+        <div class="admin__summary-card__num">${c.num}</div>
+        <div class="admin__summary-card__label">${c.label}</div>
+      </div>`).join("");
+  }
+
   async function renderBlockedDevices(preloaded) {
     const data = preloaded ? { ok: true, devices: preloaded } : await adminFetch("blockedDevicesFull");
     if (!data) {
@@ -1579,7 +1774,7 @@
           <button type="button" class="admin__presence-btn" data-action="unblock">Unblock</button>
         </div>`;
       row.querySelector('[data-action="unblock"]').addEventListener("click", async () => {
-        if (!confirm(`Unblock this device? Anyone using it will be able to log in again (under any non-suspended name).`)) return;
+        if (!(await showConfirm(`Unblock this device? Anyone using it will be able to log in again (under any non-suspended name).`))) return;
         await adminFetch("unblockDevice", { deviceId: d.deviceId });
         renderBlockedDevices();
       });
@@ -1612,6 +1807,7 @@
     renderAuditLog(data.log);
     renderContentStats(data.stats);
     renderBlockedDevices(data.devices);
+    renderSummaryStrip(data.online, data.flags, data.queue);
   }
 
   async function renderContentStats(preloaded) {
@@ -1696,7 +1892,7 @@
 
   async function onToggleSuspend(name, currentlySuspended) {
     const verb = currentlySuspended ? "unsuspend" : "suspend";
-    if (!confirm(`${currentlySuspended ? "Unsuspend" : "Suspend"} "${name}"?${currentlySuspended ? "" : " This also blocks every device and name they've ever used, and signs them out right now if online."}`)) return;
+    if (!(await showConfirm(`${currentlySuspended ? "Unsuspend" : "Suspend"} "${name}"?${currentlySuspended ? "" : " This also blocks every device and name they've ever used, and signs them out right now if online."}`))) return;
     await adminFetch(currentlySuspended ? "unsuspendIdentity" : "suspendIdentity", { name });
     renderAdminRoster();
   }
@@ -1753,11 +1949,11 @@
     const daysStr = prompt("Move log rows older than how many days into a separate archive tab? (nothing is deleted, just moved out of the live sheet)", "90");
     if (daysStr === null) return;
     const days = Number(daysStr);
-    if (!days || days < 1) { alert("Enter a number of days."); return; }
-    if (!confirm(`Archive everything older than ${days} days? Roster totals will drop for anyone whose activity is entirely in that window — their history moves to a LogArchive tab, it isn't deleted.`)) return;
+    if (!days || days < 1) { showToast("Enter a number of days.", true); return; }
+    if (!(await showConfirm(`Archive everything older than ${days} days? Roster totals will drop for anyone whose activity is entirely in that window — their history moves to a LogArchive tab, it isn't deleted.`))) return;
     const data = await adminFetch("archiveOldLogs", { days });
-    if (!data) { alert("Couldn't reach the sheet."); return; }
-    alert(`Archived ${data.result.archived} rows, ${data.result.kept} left in the live sheet.`);
+    if (!data) { showToast("Couldn't reach the sheet.", true); return; }
+    showToast(`Archived ${data.result.archived} rows, ${data.result.kept} left in the live sheet.`);
     refreshAdmin();
   }
 
@@ -1767,7 +1963,7 @@
     const data = await adminFetch("presenceLive");
     const online = (data && data.online) || [];
     await Promise.all(online.map((p) => adminFetch("sendMessage", { sessionId: p.sessionId, message: message.trim() })));
-    alert(`Sent to ${online.length} online session${online.length === 1 ? "" : "s"}.`);
+    showToast(`Sent to ${online.length} online session${online.length === 1 ? "" : "s"}.`);
   }
 
   async function renderAuditLog(preloaded) {
@@ -1865,7 +2061,7 @@
   }
 
   async function forceLogoutUser(sessionId, name) {
-    if (!confirm(`Sign ${name} out now? They'll see a notice and be returned to the login screen.`)) return;
+    if (!(await showConfirm(`Sign ${name} out now? They'll see a notice and be returned to the login screen.`))) return;
     await adminFetch("forceLogout", { sessionId });
   }
 
@@ -1909,6 +2105,7 @@
       const lastSeen = p.lastSeen ? new Date(p.lastSeen).toLocaleString() : "—";
       const totalMins = Math.round((p.totalSessionSeconds || 0) / 60);
       const akaText = p.aliases && p.aliases.length ? ` <span class="admin__roster-aka">aka ${p.aliases.join(", ")}</span>` : "";
+      const expiryLabel = p.expiresAt ? "Expires " + new Date(p.expiresAt).toLocaleDateString() : "Set expiry…";
       row.innerHTML = `
         <input type="checkbox" class="admin__roster-checkbox" ${selectedForMerge.has(p.name) ? "checked" : ""}>
         <div class="admin__roster-name">${p.name}${akaText}${p.suspended ? ' <span class="admin__roster-badge">suspended</span>' : ""}</div>
@@ -1916,8 +2113,13 @@
         <div class="admin__roster-stat">${p.sessionCount} session${p.sessionCount === 1 ? "" : "s"}</div>
         <div class="admin__roster-stat">${p.filesTouched}/${p.totalKnownFiles} files</div>
         <div class="admin__roster-stat admin__roster-lastseen">Last seen ${lastSeen}</div>
-        <button type="button" class="admin__presence-btn admin__presence-btn--danger" data-action="suspend">${p.suspended ? "Unsuspend" : "Suspend"}</button>
-        <button type="button" class="admin__presence-btn" data-action="expiry">${p.expiresAt ? "Expires " + new Date(p.expiresAt).toLocaleDateString() : "Set expiry"}</button>`;
+        <div class="admin__row-menu">
+          <button type="button" class="admin__row-menu-btn" data-action="menu-toggle" aria-label="Actions">\u22EF</button>
+          <div class="admin__row-menu-dropdown hidden">
+            <button type="button" class="admin__row-menu-item admin__row-menu-item--danger" data-action="suspend">${p.suspended ? "Unsuspend" : "Suspend"}</button>
+            <button type="button" class="admin__row-menu-item" data-action="expiry">${expiryLabel}</button>
+          </div>
+        </div>`;
 
       row.addEventListener("click", () => openAdminDetail(p.name));
       row.addEventListener("keydown", (e) => { if (e.key === "Enter") openAdminDetail(p.name); });
@@ -1928,18 +2130,35 @@
         else selectedForMerge.delete(p.name);
         updateMergeBtn();
       });
+
+      const dropdown = row.querySelector(".admin__row-menu-dropdown");
+      row.querySelector('[data-action="menu-toggle"]').addEventListener("click", (e) => {
+        e.stopPropagation();
+        const wasOpen = !dropdown.classList.contains("hidden");
+        closeAllRowMenus();
+        if (!wasOpen) dropdown.classList.remove("hidden");
+      });
       row.querySelector('[data-action="suspend"]').addEventListener("click", (e) => {
         e.stopPropagation();
+        closeAllRowMenus();
         onToggleSuspend(p.name, !!p.suspended);
       });
       row.querySelector('[data-action="expiry"]').addEventListener("click", (e) => {
         e.stopPropagation();
+        closeAllRowMenus();
         onSetExpiry(p.name, p.expiresAt);
       });
 
       adminRosterList.appendChild(row);
     });
   }
+
+  // Closes any open "⋯" dropdown — called before opening a new one,
+  // and on any outside click, so at most one is ever open at a time.
+  function closeAllRowMenus() {
+    $$(".admin__row-menu-dropdown").forEach((d) => d.classList.add("hidden"));
+  }
+  document.addEventListener("click", closeAllRowMenus);
 
   async function openAdminDetail(name) {
     adminDetail.classList.remove("hidden");

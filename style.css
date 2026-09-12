@@ -485,6 +485,36 @@ html.fonts-ready .gate__spine {
   text-overflow: ellipsis;
 }
 
+.nav__studytime {
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--brass-dim);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.nav__search { flex-shrink: 0; }
+
+.nav__search-input {
+  width: 150px;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--paper);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  padding: 7px 14px;
+  transition: width 0.2s var(--ease-soft), border-color 0.2s var(--ease-soft);
+}
+
+.nav__search-input:focus {
+  outline: none;
+  width: 200px;
+  border-color: var(--brass-dim);
+}
+
 .nav__user {
   width: 36px;
   height: 36px;
@@ -564,6 +594,39 @@ html.fonts-ready .gate__spine {
   font-weight: 500;
   color: var(--paper);
   margin-bottom: 26px;
+}
+
+/* ── Recently viewed row ────────────────────────────────────── */
+.recent-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 34px;
+}
+
+.recent-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--paper-dim);
+  background: var(--ink-raised);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 16px 8px 12px;
+  cursor: pointer;
+  transition: border-color 0.2s var(--ease-soft), color 0.2s var(--ease-soft), transform 0.2s var(--ease-spring);
+}
+
+.recent-chip:hover { border-color: var(--brass-dim); color: var(--paper); transform: translateY(-1px); }
+.recent-chip svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+.recent-chip__name {
+  max-width: 220px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 /* ── Subject Cards ──────────────────────────────────────────── */
@@ -1278,6 +1341,9 @@ html.fonts-ready .gate__spine {
   .nav__right { gap: 8px; }
   .nav__contact { width: 26px; height: 26px; }
   .nav__greeting { max-width: 22vw; }
+  .nav__studytime { display: none; }
+  .nav__search-input { width: 90px; }
+  .nav__search-input:focus { width: 130px; }
   .foot { padding: 24px 20px; }
 
   .subjects { grid-template-columns: 1fr; }
@@ -1397,6 +1463,187 @@ html.fonts-ready .gate__spine {
 }
 
 .admin__nav-btn--ghost:hover { border-color: rgba(176, 99, 73, 0.5); color: var(--chemistry); }
+
+/* ── Tabs ─────────────────────────────────────────────────────── */
+.admin__tabs {
+  display: flex;
+  gap: 4px;
+  max-width: 1040px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 14px 24px 0;
+}
+
+.admin__tab {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--paper-faint);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: color 0.2s var(--ease-soft), border-color 0.2s var(--ease-soft);
+}
+
+.admin__tab:hover { color: var(--paper); }
+.admin__tab--active { color: var(--brass); border-bottom-color: var(--brass); }
+
+.admin__tab-panel { display: none; }
+.admin__tab-panel--active { display: block; }
+
+/* ── Overview summary strip ──────────────────────────────────── */
+.admin__summary-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.admin__summary-card {
+  flex: 1 1 140px;
+  background: var(--ink-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 16px 18px;
+}
+
+.admin__summary-card--alert { border-color: rgba(176, 99, 73, 0.5); }
+
+.admin__summary-card__num {
+  font-family: var(--serif);
+  font-size: 28px;
+  color: var(--paper);
+  line-height: 1;
+}
+
+.admin__summary-card--alert .admin__summary-card__num { color: var(--chemistry); }
+
+.admin__summary-card__label {
+  font-family: var(--sans);
+  font-size: 11.5px;
+  color: var(--paper-faint);
+  margin-top: 4px;
+}
+
+/* ── Row action menu ("⋯") — replaces two separate buttons per
+   roster row with one compact dropdown ─────────────────────────── */
+.admin__row-menu { position: relative; }
+
+.admin__row-menu-btn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--paper-faint);
+  background: var(--ink-raised);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: border-color 0.2s var(--ease-soft), color 0.2s var(--ease-soft);
+}
+
+.admin__row-menu-btn:hover { border-color: var(--brass-dim); color: var(--paper); }
+
+.admin__row-menu-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 20;
+  min-width: 160px;
+  background: var(--ink-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+.admin__row-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--paper-dim);
+  background: transparent;
+  border: none;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background 0.15s var(--ease-soft), color 0.15s var(--ease-soft);
+}
+
+.admin__row-menu-item:hover { background: var(--ink); color: var(--paper); }
+.admin__row-menu-item--danger:hover { color: var(--chemistry); }
+
+/* ── Toasts (replaces alert()) ───────────────────────────────── */
+.toast-stack {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 320px;
+}
+
+.toast {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--paper);
+  background: var(--ink-raised);
+  border: 1px solid var(--brass-dim);
+  border-radius: var(--r-sm);
+  padding: 12px 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  animation: toast-in 0.25s var(--ease-spring);
+}
+
+.toast--error { border-color: rgba(176, 99, 73, 0.6); }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Confirm dialog (replaces confirm()) ─────────────────────── */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.confirm-box {
+  width: min(360px, 88vw);
+  background: var(--ink-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 24px;
+}
+
+.confirm-box__message {
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--paper);
+  margin-bottom: 20px;
+}
+
+.confirm-box__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
 
 .admin__shell {
   flex: 1;
@@ -1553,7 +1800,7 @@ html.fonts-ready .gate__spine {
 
 .admin__roster-row {
   display: grid;
-  grid-template-columns: auto 1.2fr 0.6fr 0.6fr 0.7fr 1.1fr auto auto;
+  grid-template-columns: auto 1.2fr 0.6fr 0.6fr 0.7fr 1.1fr auto;
   align-items: center;
   gap: 10px;
   padding: 13px 14px;

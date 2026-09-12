@@ -97,6 +97,10 @@
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5 12 13l8-6.5" /><rect x="3.2" y="5" width="17.6" height="14" rx="1.6"/></svg>
                     </a>
                     <span class="nav__greeting" id="greeting"></span>
+                    <span class="nav__studytime" id="studyTime" title="Time studied today"></span>
+                    <div class="nav__search">
+                        <input type="text" id="searchInput" class="nav__search-input" placeholder="Search files…" autocomplete="off">
+                    </div>
                     <button class="nav__user" id="logoutBtn" aria-label="Sign out" title="Sign out">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                     </button>
@@ -178,56 +182,75 @@
             </div>
         </nav>
 
+        <div class="admin__tabs" id="adminTabs">
+            <button type="button" class="admin__tab admin__tab--active" data-tab="overview">Overview</button>
+            <button type="button" class="admin__tab" data-tab="people">People</button>
+            <button type="button" class="admin__tab" data-tab="security">Security</button>
+            <button type="button" class="admin__tab" data-tab="content">Content</button>
+        </div>
+
         <div class="admin__shell">
-            <section class="admin__section">
-                <h2 class="admin__section-title">Online right now</h2>
-                <div class="admin__toolbar">
-                    <button type="button" id="adminBroadcastBtn" class="admin__nav-btn admin__nav-btn--ghost">Message everyone online</button>
-                </div>
-                <div id="adminPresenceList" class="admin__presence-list"></div>
-            </section>
 
-            <section class="admin__section">
-                <h2 class="admin__section-title">Flagged</h2>
-                <div id="adminFlagsList" class="admin__presence-list"></div>
-            </section>
+            <div class="admin__tab-panel admin__tab-panel--active" data-panel="overview">
+                <div class="admin__summary-strip" id="adminSummaryStrip"></div>
 
-            <section class="admin__section">
-                <h2 class="admin__section-title">Blocked devices</h2>
-                <div id="adminBlockedDevicesList" class="admin__presence-list"></div>
-            </section>
+                <section class="admin__section">
+                    <h2 class="admin__section-title">Online right now</h2>
+                    <div class="admin__toolbar">
+                        <button type="button" id="adminBroadcastBtn" class="admin__nav-btn admin__nav-btn--ghost">Message everyone online</button>
+                    </div>
+                    <div id="adminPresenceList" class="admin__presence-list"></div>
+                </section>
 
-            <section class="admin__section">
-                <h2 class="admin__section-title">Pending approval</h2>
-                <div class="admin__toolbar">
-                    <input type="text" id="adminAddNameInput" class="admin__toolbar-input" placeholder="Add a name directly…">
-                    <button type="button" id="adminAddNameBtn" class="admin__nav-btn">Add</button>
-                </div>
-                <div id="adminApprovalList" class="admin__presence-list"></div>
-            </section>
+                <section class="admin__section">
+                    <h2 class="admin__section-title">Flagged</h2>
+                    <div id="adminFlagsList" class="admin__presence-list"></div>
+                </section>
+            </div>
 
-            <section class="admin__section">
-                <h2 class="admin__section-title">Everyone</h2>
-                <div class="admin__toolbar">
-                    <input type="text" id="adminRosterSearch" class="admin__toolbar-input" placeholder="Search by name…">
-                    <button type="button" id="adminMergeBtn" class="admin__nav-btn admin__nav-btn--ghost" disabled>Merge selected (0)</button>
-                    <button type="button" id="adminExportBtn" class="admin__nav-btn admin__nav-btn--ghost">Export CSV</button>
-                </div>
-                <div id="adminRosterList" class="admin__roster-list"></div>
-            </section>
+            <div class="admin__tab-panel" data-panel="people">
+                <section class="admin__section">
+                    <h2 class="admin__section-title">Pending approval</h2>
+                    <div class="admin__toolbar">
+                        <input type="text" id="adminAddNameInput" class="admin__toolbar-input" placeholder="Add a name directly…">
+                        <button type="button" id="adminAddNameBtn" class="admin__nav-btn">Add</button>
+                    </div>
+                    <div id="adminApprovalList" class="admin__presence-list"></div>
+                </section>
 
-            <section class="admin__section">
-                <h2 class="admin__section-title">Admin action log</h2>
-                <div class="admin__toolbar">
-                    <button type="button" id="adminArchiveBtn" class="admin__nav-btn admin__nav-btn--ghost">Archive old log rows…</button>
-                </div>
-                <div id="adminAuditList" class="admin__presence-list"></div>
-            </section>
+                <section class="admin__section">
+                    <h2 class="admin__section-title">Everyone</h2>
+                    <div class="admin__toolbar">
+                        <input type="text" id="adminRosterSearch" class="admin__toolbar-input" placeholder="Search by name…">
+                        <button type="button" id="adminMergeBtn" class="admin__nav-btn admin__nav-btn--ghost" disabled>Merge selected (0)</button>
+                        <button type="button" id="adminExportBtn" class="admin__nav-btn admin__nav-btn--ghost">Export CSV</button>
+                    </div>
+                    <div id="adminRosterList" class="admin__roster-list"></div>
+                </section>
+            </div>
 
-            <section class="admin__section">
-                <h2 class="admin__section-title">Most-used content</h2>
-                <div id="adminContentStatsList" class="admin__presence-list"></div>
-            </section>
+            <div class="admin__tab-panel" data-panel="security">
+                <section class="admin__section">
+                    <h2 class="admin__section-title">Blocked devices</h2>
+                    <div id="adminBlockedDevicesList" class="admin__presence-list"></div>
+                </section>
+
+                <section class="admin__section">
+                    <h2 class="admin__section-title">Admin action log</h2>
+                    <div class="admin__toolbar">
+                        <button type="button" id="adminArchiveBtn" class="admin__nav-btn admin__nav-btn--ghost">Archive old log rows…</button>
+                    </div>
+                    <div id="adminAuditList" class="admin__presence-list"></div>
+                </section>
+            </div>
+
+            <div class="admin__tab-panel" data-panel="content">
+                <section class="admin__section">
+                    <h2 class="admin__section-title">Most-used content</h2>
+                    <div id="adminContentStatsList" class="admin__presence-list"></div>
+                </section>
+            </div>
+
         </div>
 
         <div id="adminDetail" class="admin-detail hidden">
@@ -240,6 +263,18 @@
                     </button>
                 </div>
                 <div id="adminDetailBody" class="admin-detail__body"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ TOAST + CONFIRM (replaces browser alert()/confirm()) ═══ -->
+    <div id="toastStack" class="toast-stack" aria-live="polite"></div>
+    <div id="confirmOverlay" class="confirm-overlay hidden">
+        <div class="confirm-box">
+            <p id="confirmMessage" class="confirm-box__message"></p>
+            <div class="confirm-box__actions">
+                <button type="button" id="confirmCancelBtn" class="admin__nav-btn admin__nav-btn--ghost">Cancel</button>
+                <button type="button" id="confirmOkBtn" class="admin__nav-btn">Confirm</button>
             </div>
         </div>
     </div>
